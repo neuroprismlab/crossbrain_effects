@@ -429,18 +429,16 @@ estimate_params <- function(df, df_meta, n_pts, main_title, fn, plot_type = "sd"
   print(paste0('Fitting lines for ', main_title))
   
   # params
-  nmax_plt <- 10000000
-  nmax <- 1000000000
+  nmax_extra_padding <- 1000 # so plot xlim extend a bit beyond max n
   points_only_dir <- 'points_only/'
   plot_fitted_lines <- TRUE
-  n_pts <- 1000
   use_char_mag <- FALSE
   plot_with_inv_sqrt_n <- FALSE # FALSE for sqrt(n), TRUE for 1/sqrt(n)
   
   # Determine y variable and settings based on plot_type
   if (plot_type == "sd") {
     y_var <- "sd"
-    y_label <- "SD(d) across brain areas"
+    y_label <- "SD(D) (across brain areas)"
     fit_lines <- TRUE
     y_limits <- c(-0.05, 0.5)
   } else if (plot_type == "mv") {
@@ -453,16 +451,17 @@ estimate_params <- function(df, df_meta, n_pts, main_title, fn, plot_type = "sd"
   
   # sort by sample size
   df <- df[order(df$n, decreasing = FALSE), ]
+
+  # set nmax_plt to the maximum observed sample size in df (fallback to large default if unavailable)
+  nmax_plt <- max(df$n, na.rm = TRUE) + nmax_extra_padding
   
   for (add_meta in c(TRUE, FALSE)) {
     
     if (add_meta) {
       meta_str <- '__meta'
-      nmax_plt <- max(df_meta$n)
       alpha <- 0.15 # make non-meta points more transparent
     } else {
       meta_str <- ''
-      nmax_plt <- max(df$n)
       alpha <- 0.7
     }
     
@@ -471,9 +470,8 @@ estimate_params <- function(df, df_meta, n_pts, main_title, fn, plot_type = "sd"
     if (plot_fitted_lines) {
       fitlines_str <- '__fits'
       
-      # interpolate predictions for all n
-      n_seq <- data.frame(n=seq(0, nmax_plt, length.out=n_pts))
-      n_seq[length(n_seq$n)+1,] <- nmax # ensure max n is included
+  # interpolate predictions for all n (use plotted max n only)
+  n_seq <- data.frame(n = seq(0, nmax_plt, length.out = n_pts))
       
       # set up for each overarching category
       unique_cats <- unique(df$overarching_category)
@@ -720,12 +718,19 @@ estimate_params <- function(df, df_meta, n_pts, main_title, fn, plot_type = "sd"
       df$x_plot <- 1/sqrt(df$n)
       df_meta$x_plot <- 1/sqrt(df_meta$n)
       x_label <- "1 / sqrt(n)"
-      x_limits <- c(0, max(df$x_plot, df_meta$x_plot, na.rm=TRUE))
+      # nmax_plt is always defined; compute smallest positive n step from nmax_plt and n_pts
+      if (n_pts > 1) {
+        min_pos_n <- nmax_plt / (n_pts - 1)
+      } else {
+        min_pos_n <- 1
+      }
+      x_limits <- c(0, 1 / sqrt(min_pos_n))
     } else {
       df$x_plot <- sqrt(df$n)
       df_meta$x_plot <- sqrt(df_meta$n)
       x_label <- "sqrt(n)"
-      x_limits <- c(0, max(df$x_plot, df_meta$x_plot, na.rm=TRUE))
+      # use nmax_plt (prediction max) to set the upper x limit
+      x_limits <- c(0, sqrt(nmax_plt))
     }
     cats <- levels(df$overarching_category)
     color_map <- setNames(RColorBrewer::brewer.pal(length(cats), "Set1"), cats)
