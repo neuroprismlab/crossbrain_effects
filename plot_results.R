@@ -10,8 +10,6 @@
 #' @param estimate
 #' @ param fn_basedir Directory to save results
 #' @param v_data list of studies in the BrainEffeX format (see OSF link: https://doi.org/10.17605/OSF.IO/CWNJD)
-#' @param motion_method_t motion correction method to use for studies with one sample t-tests (default: "threshold")
-#' @param motion_method_not_t motion correction method to use for studies without one sample t-tests (default: "regression")
 #' @param save_plots Whether to save plots to files (default: TRUE)
 #'
 #' @return Saves plots to specified output directory
@@ -24,7 +22,7 @@
 
 # ------------- MAIN -------------------------
 
-plot_results <- function(estimate = 'd', fn_basedir, v_data, motion_method_t = "threshold", motion_method_not_t = "regression", combo_name, save_plots = TRUE) {
+plot_results <- function(estimate = 'd', fn_basedir, v_data, combo_name, save_plots = TRUE) {
 
 ## Setup
   
@@ -300,8 +298,19 @@ get_study_summaries <- function(data, study, estimate, combo_name) {
     data[[i]][[combo_name]][[ci_lb]] <- data[[i]][[combo_name]][[ci_lb]][!na_idx]
     data[[i]][[combo_name]][[ci_ub]] <- data[[i]][[combo_name]][[ci_ub]][!na_idx]
     
+    # get mask - already pre-masked
+    # if (combo_name %in% names(masks[[i]])) { # meta-analysis
+    #   mask <- masks[[i]][[combo_name]]$mask
+    # } else { # individual study
+    #   mask <- masks[[i]]$mask
+    # }
+    # if (sum(mask) < length(data[[i]][[combo_name]][[estimate]])) {
+    #   sorted_indices <- which(mask == 1)[order(data[[i]][[combo_name]][[estimate]][mask])]
+    # } else {
+      sorted_indices <- order(data[[i]][[combo_name]][[estimate]])
+    # }
+    
     # sort data from smallest to largest effect size
-    sorted_indices <- order(data[[i]][[combo_name]][[estimate]])
     sorted_estimate <- data[[i]][[combo_name]][[estimate]][sorted_indices]
     sorted_upper_bounds <- data[[i]][[combo_name]][[ci_ub]][sorted_indices]
     sorted_lower_bounds <- data[[i]][[combo_name]][[ci_lb]][sorted_indices]
@@ -339,11 +348,11 @@ get_study_summaries <- function(data, study, estimate, combo_name) {
         d_n[i] <- data[[i]][[combo_name]]$n1 + data[[i]][[combo_name]]$n2
         # get var for meta
         if (estimate == "d") {
-          vi[i] <- d_se(d_sd, data[[i]][[combo_name]]$n1, data[[i]][[combo_name]]$n2)^2
+          vi[i] <- d_se(d_sd[i], data[[i]][[combo_name]]$n1, data[[i]][[combo_name]]$n2)^2
           vi_char_mag[i] <- d_se(d_characteristic_mag[i], data[[i]][[combo_name]]$n1, data[[i]][[combo_name]]$n2)^2
           vi_mv[i] <- d_se(d_mv[i], data[[i]][[combo_name]]$n1, data[[i]][[combo_name]]$n2)^2
         } else if (estimate == "r_sq") {
-          vi[i] <- r_sq_se(d_sd, data[[i]][[combo_name]]$n1 + data[[i]][[combo_name]]$n2)^2
+          vi[i] <- r_sq_se(d_sd[i], data[[i]][[combo_name]]$n1 + data[[i]][[combo_name]]$n2)^2
           vi_char_mag[i] <- r_sq_se(d_characteristic_mag[i], data[[i]][[combo_name]]$n1 + data[[i]][[combo_name]]$n2)^2
           vi_mv[i] <- r_sq_se(d_mv[i], data[[i]][[combo_name]]$n1 + data[[i]][[combo_name]]$n2)^2
         }
@@ -360,19 +369,18 @@ get_study_summaries <- function(data, study, estimate, combo_name) {
     } else if (study$orig_stat_type[[i]] == "t" || study$orig_stat_type[[i]] == "r") {
     # if (!is.null(data[[i]][[combo_name]]$n)) {
       d_n[i] <- data[[i]][[combo_name]]$n
-      
       if (estimate == "d") {
         if (study$orig_stat_type[[i]] == "r") { # treat as 2-sample t-test
-          vi[i] <- d_se(d_sd, d_n[i]/2, d_n[i]/2)^2
+          vi[i] <- d_se(d_sd[i], d_n[i]/2, d_n[i]/2)^2
           vi_char_mag[i] <- d_se(d_characteristic_mag[i], d_n[i]/2, d_n[i]/2)^2
           vi_mv[i] <- d_se(d_mv[i], d_n[i]/2, d_n[i]/2)^2
         } else { # normal 1-sample t-test
-          vi[i] <- d_se(d_sd, d_n[i])^2
+          vi[i] <- d_se(d_sd[i], d_n[i])^2
           vi_char_mag[i] <- d_se(d_characteristic_mag[i], d_n[i])^2
           vi_mv[i] <- d_se(d_mv[i], d_n[i])^2
         }
       } else if (estimate == "r_sq") {
-        vi[i] <- r_sq_se(d_sd, d_n[i])^2
+        vi[i] <- r_sq_se(d_sd[i], d_n[i])^2
         vi_char_mag[i] <- r_sq_se(d_characteristic_mag[i], d_n[i])^2
         vi_mv[i] <- r_sq_se(d_mv[i], d_n[i])^2
       }
@@ -653,8 +661,8 @@ estimate_params <- function(df, df_meta, n_pts, main_title, fn, plot_type = "sd"
             cat_intercept_se <- sqrt(fit_all$vb[1,1] + category_effects[cat, "se"]^2)
           } else {
             # If category not found, use overall intercept
-            cat_intercept <- fit_all$beta[1]
-            cat_intercept_se <- sqrt(fit_all$vb[1,1])
+            cat_intercept <- NA
+            cat_intercept_se <- NA
           }
           
           if (plot_type == "mv") {
