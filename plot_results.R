@@ -257,6 +257,7 @@ get_study_summaries <- function(data, study, estimate, combo_name) {
   vi <- numeric(length(data))
   vi_char_mag <- numeric(length(data))
   vi_mv <- numeric(length(data))
+  shapiro <- numeric(length(data))
   
   if (estimate == "d") {
     ci_lb <- "sim_ci_lb"
@@ -332,10 +333,10 @@ get_study_summaries <- function(data, study, estimate, combo_name) {
     all_combos <- names(data[[i]])
     mv_combo_idx <- grep(mv_combo_name, all_combos)
     # if doesn't exist, replace motion.xxx. with motion.threshold.
-    if (length(mv_combo_idx) == 0) {
-      mv_combo_name_alt <- gsub("motion\\.[^\\.]+\\.", "motion.threshold.", mv_combo_name)
-      mv_combo_idx <- grep(mv_combo_name_alt, all_combos)
-    }
+    # if (length(mv_combo_idx) == 0) {
+    #   mv_combo_name_alt <- gsub("motion\\.[^\\.]+\\.", "motion.threshold.", mv_combo_name)
+    #   mv_combo_idx <- grep(mv_combo_name_alt, all_combos)
+    # }
     mv_combo_name <- all_combos[mv_combo_idx]
     d_mv[i] <- data[[i]][[mv_combo_name]]$d
     d_mv_lb[i] <- data[[i]][[mv_combo_name]]$sim_ci_lb
@@ -389,18 +390,22 @@ get_study_summaries <- function(data, study, estimate, combo_name) {
     }
     
     # d_biased_sd[i] <- sd(d) * sqrt((length(d) - 1) / length(d)) # biased sd - doesn'd change results
-    # TODO: catch normality test results
+    
     # test for normality (usually light- or heavy-tailed, some approximately normal)
-    # d_subset <- d[seq(1, length(d), length.out = 5000)] # max 5000 variables for shapiro test
-    # d_normal_test[i] <- shapiro.test(d_subset)$p.value # p-value < 2e-16 -> not normal
-    # qqnorm(d, pch=20, cex=0.5); qqline(d) # visualize
-    
-    
+    if (length(sorted_estimate) > 1) {
+      k <- min(5000, length(sorted_estimate))  # max 5000 variables for shapiro test
+      d_subset <- sorted_estimate[seq(1, length(sorted_estimate), length.out = k)]
+      shapiro[i] <- shapiro.test(d_subset)$p.value # p-value < 2e-16 -> not normal
+      # shapiro[i] <- ks.test(sorted_estimate,'pnorm',mean=mean(sorted_estimate),sd=sd(sorted_estimate))$p.value # p-value < 2e-16 -> not normal
+      # qqnorm(d, pch=20, cex=0.5); qqline(d) # visualize
+    } else {
+      shapiro[i] <- NA # not enough data to test
+    }
   }
   
   # set up final data frame
   
-  df <- data.frame(name = names(data), mean = d_mean, sd = d_sd, char_mag = d_characteristic_mag, mean_cons = d_cons_mean, sd_cons = d_cons_sd, char_mag_cons = d_characteristic_mag_cons, n = d_n, category = as.factor(study$category), dataset = I(study$dataset), ref = study$ref, orig_stat_type = study$orig_stat_type, mv = d_mv, mv_lb = d_mv_lb, mv_ub = d_mv_ub, vi_sd = vi, vi_char_mag = vi_char_mag, vi_mv = vi_mv, stringsAsFactors = FALSE)
+  df <- data.frame(name = names(data), mean = d_mean, sd = d_sd, char_mag = d_characteristic_mag, mean_cons = d_cons_mean, sd_cons = d_cons_sd, char_mag_cons = d_characteristic_mag_cons, n = d_n, category = as.factor(study$category), dataset = I(study$dataset), ref = study$ref, orig_stat_type = study$orig_stat_type, mv = d_mv, mv_lb = d_mv_lb, mv_ub = d_mv_ub, vi_sd = vi, vi_char_mag = vi_char_mag, vi_mv = vi_mv, shapiro = shapiro, stringsAsFactors = FALSE)
   
   # for meta: if exists, add n_studies
   if ("n_studies" %in% colnames(study)) {
@@ -799,6 +804,13 @@ estimate_params <- function(df, df_meta, n_pts, main_title, fn, plot_type = "sd"
       } else {
         show(p)
       }
+      
+      # Save normality test results
+      if (save_plots  && plot_type != "mv") {
+        write.csv(df$shapiro, file=paste0(fn, '_shapiro.csv'), row.names=TRUE)
+        print(paste0('Proportion significantly non-normal: ', sum(df$shapiro < 0.05)/length(df$shapiro),' (',sum(df$shapiro < 0.05),' studies)'))
+      }
+      
     }
   }
   
