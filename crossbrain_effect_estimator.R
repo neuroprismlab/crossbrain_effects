@@ -443,8 +443,6 @@ estimate_params <- function(df, df_meta, n_pts, main_title, fn, plot_type = "sd"
   
   # params
   nmax_extra_padding <- 1000 # so plot xlim extend a bit beyond max n
-  points_only_dir <- 'points_only/'
-  plot_fitted_lines <- TRUE
   use_char_mag <- FALSE
   plot_with_inv_sqrt_n <- FALSE # FALSE for sqrt(n), TRUE for 1/sqrt(n)
   
@@ -480,250 +478,240 @@ estimate_params <- function(df, df_meta, n_pts, main_title, fn, plot_type = "sd"
     
     # Fit params & plot fits
     
-    if (plot_fitted_lines) {
-      fitlines_str <- '__fits'
+    fitlines_str <- '__fits'
+    
+    # interpolate predictions for all n (use plotted max n only)
+    n_seq <- data.frame(n = seq(0, nmax_plt, length.out = n_pts))
+    
+    # set up for each overarching category
+    unique_cats <- unique(df$overarching_category)
+    # if 'task activation' exists in unique_cats, make it come right after 'task connectivity'
+    if ("task activation" %in% unique_cats) {
+      unique_cats <- c(setdiff(unique_cats, "task connectivity"), "task connectivity")
+      unique_cats <- c(setdiff(unique_cats, "task activation"), "task activation")
+    }
+    predicted_y <- vector("list", length(unique_cats))
+    names(predicted_y) <- unique_cats
+    
+    do_by_cat <- FALSE
+    
+    if (do_by_cat) {
       
-  # interpolate predictions for all n (use plotted max n only)
-  n_seq <- data.frame(n = seq(0, nmax_plt, length.out = n_pts))
+      # preallocate results
+      res <- vector("list", length(unique_cats))
       
-      # set up for each overarching category
-      unique_cats <- unique(df$overarching_category)
-      # if 'task activation' exists in unique_cats, make it come right after 'task connectivity'
-      if ("task activation" %in% unique_cats) {
-        unique_cats <- c(setdiff(unique_cats, "task connectivity"), "task connectivity")
-        unique_cats <- c(setdiff(unique_cats, "task activation"), "task activation")
-      }
-      predicted_y <- vector("list", length(unique_cats))
-      names(predicted_y) <- unique_cats
-      
-      do_by_cat <- FALSE
-      
-      if (do_by_cat) {
+      for (cat in unique_cats) {
         
-        # preallocate results
-        res <- vector("list", length(unique_cats))
+        # setup df
+        df_cat <- df[df$overarching_category == cat, ]
+        # df_cat <- df[df$overarching_category == cat & !is.na(df$mv), ]
+        n_obs <- nrow(df_cat)
+        n_levels <- length(unique(df_cat$dataset))
         
-        for (cat in unique_cats) {
+        if (cat != "task activation") { # special procedure for activation
           
-          # setup df
-          df_cat <- df[df$overarching_category == cat, ]
-          # df_cat <- df[df$overarching_category == cat & !is.na(df$mv), ]
-          n_obs <- nrow(df_cat)
-          n_levels <- length(unique(df_cat$dataset))
+          # # estimate fits with nesting by dataset, unless only one unique dataset
+          # if (length(unique(df_cat$dataset)) > 2) {
+          #   
+          #   # fit
+          #   if (plot_type == "mv") {
+          #     fit_cat <- lmer(mv ~ 1 + (1|dataset), data = df_cat)
+          #     d <- as.matrix(model.matrix(~ 1, data = n_seq))
+          #   } else {
+          #     if (use_char_mag) {
+          #       fit_cat <- lmer(char_mag ~ I(1/sqrt(n)) + (1|dataset), data = df_cat)
+          #     } else {
+          #       fit_cat <- lmer(sd ~ I(1/sqrt(n)) + (1|dataset), data = df_cat)
+          #     }
+          #     # fit_cat <- lmer(char_mag ~ I(1/sqrt(n)) + (1|dataset), data = df_cat)
+          #     d <- model.matrix(~ I(1/sqrt(n)), data = n_seq)
+          #   }
+          #   
+          #   # Use fixed effects for prediction
+          #   preds <- as.vector(d %*% fixef(fit_cat) )
+          #   preds_se <- sqrt(diag(d %*% vcov(fit_cat) %*% t(d)))
+          #   lwr <- preds - 1.96 * preds_se
+          #   upr <- preds + 1.96 * preds_se
+          #   predicted_y[[cat]] <- cbind(fit = preds, lwr = lwr, upr = upr)
+          #   
+          # } else {
           
-          if (cat != "task activation") { # special procedure for activation
-            
-            # # estimate fits with nesting by dataset, unless only one unique dataset
-            # if (length(unique(df_cat$dataset)) > 2) {
-            #   
-            #   # fit
-            #   if (plot_type == "mv") {
-            #     fit_cat <- lmer(mv ~ 1 + (1|dataset), data = df_cat)
-            #     d <- as.matrix(model.matrix(~ 1, data = n_seq))
-            #   } else {
-            #     if (use_char_mag) {
-            #       fit_cat <- lmer(char_mag ~ I(1/sqrt(n)) + (1|dataset), data = df_cat)
-            #     } else {
-            #       fit_cat <- lmer(sd ~ I(1/sqrt(n)) + (1|dataset), data = df_cat)
-            #     }
-            #     # fit_cat <- lmer(char_mag ~ I(1/sqrt(n)) + (1|dataset), data = df_cat)
-            #     d <- model.matrix(~ I(1/sqrt(n)), data = n_seq)
-            #   }
-            #   
-            #   # Use fixed effects for prediction
-            #   preds <- as.vector(d %*% fixef(fit_cat) )
-            #   preds_se <- sqrt(diag(d %*% vcov(fit_cat) %*% t(d)))
-            #   lwr <- preds - 1.96 * preds_se
-            #   upr <- preds + 1.96 * preds_se
-            #   predicted_y[[cat]] <- cbind(fit = preds, lwr = lwr, upr = upr)
-            #   
-            # } else {
-            
-            if (plot_type == "mv") {
-              fit_cat <- lm(mv ~ 1, data=df_cat)
+          if (plot_type == "mv") {
+            fit_cat <- lm(mv ~ 1, data=df_cat)
+          } else {
+            if (use_char_mag) {
+              fit_cat <- lm(char_mag ~ I(1/sqrt(n)), data=df_cat)
             } else {
-              if (use_char_mag) {
-                fit_cat <- lm(char_mag ~ I(1/sqrt(n)), data=df_cat)
-              } else {
-                fit_cat <- lm(sd ~ I(1/sqrt(n)), data=df_cat)
-              }
+              fit_cat <- lm(sd ~ I(1/sqrt(n)), data=df_cat)
             }
+          }
+          predicted_y[[cat]] <- predict(fit_cat, n_seq, interval="confidence")
+          # }
+          
+        } else {
+          
+          # use slope from task connectivity to estimate intercept
+          
+          if (plot_type == "mv") { # same as above
+            # fit_cat2 <- lm(mv ~ 1, data=df_cat)
+            # # For mv, just use fit_cat2 estimates directly
+            # d <- model.matrix(~ 1, data = n_seq)
+            # preds <- as.vector(d %*% coef(fit_cat2))
+            # preds_se <- sqrt(diag(d %*% vcov(fit_cat2) %*% t(d)))
+            
+            fit_cat <- lm(mv ~ 1, data=df_cat)
             predicted_y[[cat]] <- predict(fit_cat, n_seq, interval="confidence")
-            # }
             
           } else {
             
-            # use slope from task connectivity to estimate intercept
+            # Get slope from previous fit
+            # slope <- fixef(fit_cat)["I(1/sqrt(n))"]
+            slope <- fit_cat$coefficients["I(1/sqrt(n))"]
             
-            if (plot_type == "mv") { # same as above
-              # fit_cat2 <- lm(mv ~ 1, data=df_cat)
-              # # For mv, just use fit_cat2 estimates directly
-              # d <- model.matrix(~ 1, data = n_seq)
-              # preds <- as.vector(d %*% coef(fit_cat2))
-              # preds_se <- sqrt(diag(d %*% vcov(fit_cat2) %*% t(d)))
-              
-              fit_cat <- lm(mv ~ 1, data=df_cat)
-              predicted_y[[cat]] <- predict(fit_cat, n_seq, interval="confidence")
-              
+            if (use_char_mag) { # different - fit intercept with slope fixed from connectivity
+              fit_cat2 <- lm(I(char_mag - I(slope * 1/sqrt(n))) ~ 1, data=df_cat)
             } else {
-              
-              # Get slope from previous fit
-              # slope <- fixef(fit_cat)["I(1/sqrt(n))"]
-              slope <- fit_cat$coefficients["I(1/sqrt(n))"]
-              
-              if (use_char_mag) { # different - fit intercept with slope fixed from connectivity
-                fit_cat2 <- lm(I(char_mag - I(slope * 1/sqrt(n))) ~ 1, data=df_cat)
-              } else {
-                fit_cat2 <- lm(I(sd - I(slope * 1/sqrt(n))) ~ 1, data=df_cat)
-              }
-              d <- model.matrix(~ I(1/sqrt(n)), data = n_seq)
-              
-              # Create combined coefficients: intercept from fit_cat2, slope from fit_cat
-              # also, corresponding variances for standard errors
-              combined_coef <- c(coef(fit_cat2)["(Intercept)"], slope)
-              names(combined_coef) <- c("(Intercept)", "I(1/sqrt(n))")
-              vcov_combined <- vcov(fit_cat)
-              vcov_combined["(Intercept)", "(Intercept)"] <- vcov(fit_cat2)["(Intercept)", "(Intercept)"]
-              
-              # Use combined coefficients for prediction
-              preds <- as.vector(d %*% combined_coef)
-              preds_se <- sqrt(diag(d %*% vcov_combined %*% t(d)))
-              lwr <- preds - 1.96 * preds_se
-              upr <- preds + 1.96 * preds_se
-              predicted_y[[cat]] <- cbind(fit = preds, lwr = lwr, upr = upr)
-              
-              fit_cat <- fit_cat2 # for getting Intercept est, lwr, upr below
+              fit_cat2 <- lm(I(sd - I(slope * 1/sqrt(n))) ~ 1, data=df_cat)
             }
+            d <- model.matrix(~ I(1/sqrt(n)), data = n_seq)
+            
+            # Create combined coefficients: intercept from fit_cat2, slope from fit_cat
+            # also, corresponding variances for standard errors
+            combined_coef <- c(coef(fit_cat2)["(Intercept)"], slope)
+            names(combined_coef) <- c("(Intercept)", "I(1/sqrt(n))")
+            vcov_combined <- vcov(fit_cat)
+            vcov_combined["(Intercept)", "(Intercept)"] <- vcov(fit_cat2)["(Intercept)", "(Intercept)"]
+            
+            # Use combined coefficients for prediction
+            preds <- as.vector(d %*% combined_coef)
+            preds_se <- sqrt(diag(d %*% vcov_combined %*% t(d)))
+            lwr <- preds - 1.96 * preds_se
+            upr <- preds + 1.96 * preds_se
+            predicted_y[[cat]] <- cbind(fit = preds, lwr = lwr, upr = upr)
+            
+            fit_cat <- fit_cat2 # for getting Intercept est, lwr, upr below
           }
-          
-          est <- summary(fit_cat)$coefficients[,"Estimate"]
-          lwr <- summary(fit_cat)$coefficients[,"Estimate"] - 1.96 * summary(fit_cat)$coefficients[,"Std. Error"]
-          upr <- summary(fit_cat)$coefficients[,"Estimate"] + 1.96 * summary(fit_cat)$coefficients[,"Std. Error"]
-          
-          # max_val[[cat]] <- predicted_y[[cat]][length(n_seq$n),]
-          # res[[cat]] <- c(beta[[cat]], max_val[[cat]])
-          
-          if (plot_type == "mv" | cat == "task activation") {
-            res[[cat]] <- c(est = est, lwr = lwr, upr = upr)
-          } else {
-            res[[cat]] <- data.frame(est = est["(Intercept)"], lwr = lwr["(Intercept)"], upr = upr["(Intercept)"], row.names = NULL)
-          }
-          
         }
         
-        # Combine all categories into a tidy data frame
-        res <- do.call(rbind, res)
+        est <- summary(fit_cat)$coefficients[,"Estimate"]
+        lwr <- summary(fit_cat)$coefficients[,"Estimate"] - 1.96 * summary(fit_cat)$coefficients[,"Std. Error"]
+        upr <- summary(fit_cat)$coefficients[,"Estimate"] + 1.96 * summary(fit_cat)$coefficients[,"Std. Error"]
         
+        # max_val[[cat]] <- predicted_y[[cat]][length(n_seq$n),]
+        # res[[cat]] <- c(beta[[cat]], max_val[[cat]])
         
-      } else { # nesting within category, dataset x category
+        if (plot_type == "mv" | cat == "task activation") {
+          res[[cat]] <- c(est = est, lwr = lwr, upr = upr)
+        } else {
+          res[[cat]] <- data.frame(est = est["(Intercept)"], lwr = lwr["(Intercept)"], upr = upr["(Intercept)"], row.names = NULL)
+        }
         
-        # fit meta-analysis nesting studies by dataset and overarching category
-        
-        # setup grouping variables
-        df$dataset_nested <- interaction(df$overarching_category, df$dataset, drop = TRUE)
-        # df$study_nested <- interaction(df$overarching_category, df$dataset, df$name, drop = TRUE)
-        
-        if (plot_type == "mv") {
-          fit_all <- rma.mv(yi = mv, 
-                            V = vi_mv,  # approximate variance from CI
+      }
+      
+      # Combine all categories into a tidy data frame
+      res <- do.call(rbind, res)
+      
+      
+    } else { # nesting within category, dataset x category
+      
+      # fit meta-analysis nesting studies by dataset and overarching category
+      
+      # setup grouping variables
+      df$dataset_nested <- interaction(df$overarching_category, df$dataset, drop = TRUE)
+      # df$study_nested <- interaction(df$overarching_category, df$dataset, df$name, drop = TRUE)
+      
+      if (plot_type == "mv") {
+        fit_all <- rma.mv(yi = mv, 
+                          V = vi_mv,  # approximate variance from CI
+                          random = ~ 1 | overarching_category/dataset_nested,
+                          # random = ~ 1 | overarching_category/dataset_nested/study_nested,
+                          data = df,
+                          method = "REML")
+      } else {
+        if (use_char_mag) {
+          fit_all <- rma.mv(yi = char_mag, 
+                            V = vi_char_mag,  # approximate variance
+                            mods = ~ I(1/sqrt(n)),
                             random = ~ 1 | overarching_category/dataset_nested,
-                            # random = ~ 1 | overarching_category/dataset_nested/study_nested,
                             data = df,
                             method = "REML")
         } else {
-          if (use_char_mag) {
-            fit_all <- rma.mv(yi = char_mag, 
-                              V = vi_char_mag,  # approximate variance
-                              mods = ~ I(1/sqrt(n)),
-                              random = ~ 1 | overarching_category/dataset_nested,
-                              data = df,
-                              method = "REML")
-          } else {
-            fit_all <- rma.mv(yi = sd, 
-                              V = vi_sd,  # approximate variance
-                              mods = ~ I(1/sqrt(n)),
-                              random = ~ 1 | overarching_category/dataset_nested,
-                              data = df,
-                              method = "REML")
-          }
+          fit_all <- rma.mv(yi = sd, 
+                            V = vi_sd,  # approximate variance
+                            mods = ~ I(1/sqrt(n)),
+                            random = ~ 1 | overarching_category/dataset_nested,
+                            data = df,
+                            method = "REML")
         }
-        
-        # Extract estimates and confidence intervals from meta-analysis
-        # Extract category-specific random effects (BLUPs)
-        random_effects <- ranef(fit_all)
-        category_effects <- random_effects$overarching_category
-        
-        # Create results with category-specific intercepts
-        res <- vector("list", length(unique_cats))
-        names(res) <- unique_cats
-        predicted_y <- vector("list", length(unique_cats))
-        names(predicted_y) <- unique_cats
-        
-        for (cat in unique_cats) {
-          # Get category-specific intercept (overall + random effect)
-          if (cat %in% rownames(category_effects)) {
-            cat_intercept <- fit_all$beta[1] + category_effects[cat, "intrcpt"]
-            cat_intercept_se <- sqrt(fit_all$vb[1,1] + category_effects[cat, "se"]^2)
-          } else {
-            # If category not found, use overall intercept
-            cat_intercept <- NA
-            cat_intercept_se <- NA
-          }
-          
-          if (plot_type == "mv") {
-            # For intercept-only model
-            res[[cat]] <- data.frame(
-              est = cat_intercept,
-              lwr = cat_intercept - 1.96 * cat_intercept_se,
-              upr = cat_intercept + 1.96 * cat_intercept_se,
-              row.names = paste0(cat, "_intercept")
-            )
-            
-            # Create predicted values (constant line for mv)
-            preds <- rep(cat_intercept, length(n_seq$n))
-            preds_se <- rep(cat_intercept_se, length(n_seq$n))
-            lwr <- preds - 1.96 * preds_se
-            upr <- preds + 1.96 * preds_se
-            predicted_y[[cat]] <- cbind(fit = preds, lwr = lwr, upr = upr)
-            
-          } else {
-            # For models with moderators (intercept and slope)
-            # Note: slope is the same for all categories (fixed effect)
-            slope <- fit_all$beta[2]
-            slope_se <- sqrt(fit_all$vb[2,2])
-            
-            # Only include intercept in results (not slope)
-            res[[cat]] <- data.frame(
-              est = cat_intercept,
-              lwr = cat_intercept - 1.96 * cat_intercept_se,
-              upr = cat_intercept + 1.96 * cat_intercept_se,
-              row.names = paste0(cat, "_intercept")
-            )
-            
-            # Create predicted values with category-specific intercept
-            preds <- cat_intercept + slope * (1/sqrt(n_seq$n))
-            # Standard errors for predictions (more complex with random effects)
-            X_pred <- cbind(1, 1/sqrt(n_seq$n))
-            preds_se_fixed <- sqrt(diag(X_pred %*% fit_all$vb %*% t(X_pred)))
-            preds_se <- sqrt(preds_se_fixed^2 + cat_intercept_se^2)
-            lwr <- preds - 1.96 * preds_se
-            upr <- preds + 1.96 * preds_se
-            predicted_y[[cat]] <- cbind(fit = preds, lwr = lwr, upr = upr)
-          }
-        }
-        
-        # Combine results into single dataframe
-        res <- do.call(rbind, res)
-        
       }
       
-    } else {
-      # If not plotting fitlines, change output folder to 'points_only' dir
-      fn_plot <- file.path(dirname(fn), points_only_dir, basename(fn))
-      if (!dir.exists(dirname(fn_plot))) {
-        dir.create(dirname(fn_plot), recursive = TRUE)
+      # Extract estimates and confidence intervals from meta-analysis
+      # Extract category-specific random effects (BLUPs)
+      random_effects <- ranef(fit_all)
+      category_effects <- random_effects$overarching_category
+      
+      # Create results with category-specific intercepts
+      res <- vector("list", length(unique_cats))
+      names(res) <- unique_cats
+      predicted_y <- vector("list", length(unique_cats))
+      names(predicted_y) <- unique_cats
+      
+      for (cat in unique_cats) {
+        # Get category-specific intercept (overall + random effect)
+        if (cat %in% rownames(category_effects)) {
+          cat_intercept <- fit_all$beta[1] + category_effects[cat, "intrcpt"]
+          cat_intercept_se <- sqrt(fit_all$vb[1,1] + category_effects[cat, "se"]^2)
+        } else {
+          # If category not found, use overall intercept
+          cat_intercept <- NA
+          cat_intercept_se <- NA
+        }
+        
+        if (plot_type == "mv") {
+          # For intercept-only model
+          res[[cat]] <- data.frame(
+            est = cat_intercept,
+            lwr = cat_intercept - 1.96 * cat_intercept_se,
+            upr = cat_intercept + 1.96 * cat_intercept_se,
+            row.names = paste0(cat, "_intercept")
+          )
+          
+          # Create predicted values (constant line for mv)
+          preds <- rep(cat_intercept, length(n_seq$n))
+          preds_se <- rep(cat_intercept_se, length(n_seq$n))
+          lwr <- preds - 1.96 * preds_se
+          upr <- preds + 1.96 * preds_se
+          predicted_y[[cat]] <- cbind(fit = preds, lwr = lwr, upr = upr)
+          
+        } else {
+          # For models with moderators (intercept and slope)
+          # Note: slope is the same for all categories (fixed effect)
+          slope <- fit_all$beta[2]
+          slope_se <- sqrt(fit_all$vb[2,2])
+          
+          # Only include intercept in results (not slope)
+          res[[cat]] <- data.frame(
+            est = cat_intercept,
+            lwr = cat_intercept - 1.96 * cat_intercept_se,
+            upr = cat_intercept + 1.96 * cat_intercept_se,
+            row.names = paste0(cat, "_intercept")
+          )
+          
+          # Create predicted values with category-specific intercept
+          preds <- cat_intercept + slope * (1/sqrt(n_seq$n))
+          # Standard errors for predictions (more complex with random effects)
+          X_pred <- cbind(1, 1/sqrt(n_seq$n))
+          preds_se_fixed <- sqrt(diag(X_pred %*% fit_all$vb %*% t(X_pred)))
+          preds_se <- sqrt(preds_se_fixed^2 + cat_intercept_se^2)
+          lwr <- preds - 1.96 * preds_se
+          upr <- preds + 1.96 * preds_se
+          predicted_y[[cat]] <- cbind(fit = preds, lwr = lwr, upr = upr)
+        }
       }
-      res <- NULL
+      
+      # Combine results into single dataframe
+      res <- do.call(rbind, res)
+      
     }
     
     # plot
@@ -771,47 +759,44 @@ estimate_params <- function(df, df_meta, n_pts, main_title, fn, plot_type = "sd"
       p <- p + scale_y_continuous(limits = y_limits, expand = c(0, 0))
     }
     
-    if (plot_fitted_lines) {
-      for (cat in unique_cats) {
-        pred_mat <- predicted_y[[cat]]
-        if (!is.null(pred_mat) && is.matrix(pred_mat) && all(c("fit","lwr","upr") %in% colnames(pred_mat)) && nrow(pred_mat) == length(n_seq$n)) {
-          pred_df <- data.frame(
-            x_plot = if (plot_with_inv_sqrt_n) 1/sqrt(n_seq$n) else sqrt(n_seq$n),
-            fit = pred_mat[,"fit"],
-            lwr = pred_mat[,"lwr"],
-            upr = pred_mat[,"upr"],
-            overarching_category = cat
-          )
-          p <- p +
-            geom_line(data = pred_df, aes(x = x_plot, y = fit, color = overarching_category), linewidth = 1, alpha = alpha) +
-            geom_line(data = pred_df, aes(x = x_plot, y = lwr, color = overarching_category), linetype = "dotted", linewidth = 0.8, alpha = alpha) +
-            geom_line(data = pred_df, aes(x = x_plot, y = upr, color = overarching_category), linetype = "dotted", linewidth = 0.8, alpha = alpha)
-        }
-      }
-      
-      if (add_meta && nrow(df_meta) > 0) {
-        df_meta$label <- paste0(gsub("_reference_", " (", df_meta$name), ")\n", df_meta$n_studies, " ", ifelse(df_meta$n_studies == 1, "study", "studies"))
+    for (cat in unique_cats) {
+      pred_mat <- predicted_y[[cat]]
+      if (!is.null(pred_mat) && is.matrix(pred_mat) && all(c("fit","lwr","upr") %in% colnames(pred_mat)) && nrow(pred_mat) == length(n_seq$n)) {
+        pred_df <- data.frame(
+          x_plot = if (plot_with_inv_sqrt_n) 1/sqrt(n_seq$n) else sqrt(n_seq$n),
+          fit = pred_mat[,"fit"],
+          lwr = pred_mat[,"lwr"],
+          upr = pred_mat[,"upr"],
+          overarching_category = cat
+        )
         p <- p +
-          geom_point(data = df_meta, aes_string(x = "x_plot", y = y_var, color = "overarching_category"), shape = 8, size = 2) +
-          geom_text_repel(data = df_meta, aes_string(x = "x_plot", y = y_var, label = "label"), size = 2.2, segment.size = 0.3, force = 10, max.overlaps = Inf)
+          geom_line(data = pred_df, aes(x = x_plot, y = fit, color = overarching_category), linewidth = 1, alpha = alpha) +
+          geom_line(data = pred_df, aes(x = x_plot, y = lwr, color = overarching_category), linetype = "dotted", linewidth = 0.8, alpha = alpha) +
+          geom_line(data = pred_df, aes(x = x_plot, y = upr, color = overarching_category), linetype = "dotted", linewidth = 0.8, alpha = alpha)
       }
-      
-      fitlines_suffix <- if (plot_fitted_lines) "__fits" else ""
-      fn_plot <- fn
-      this_fn <- paste0(fn_plot, fitlines_suffix, meta_str, '.pdf')
-      if (save_plots) {
-        ggsave(this_fn, plot = p, width = 5, height = 4)
-      } else {
-        show(p)
-      }
-      
-      # Save normality test results
-      if (save_plots  && plot_type != "mv") {
-        write.csv(df$shapiro, file=paste0(fn, '_shapiro.csv'), row.names=TRUE)
-        print(paste0('Proportion significantly non-normal: ', sum(df$shapiro < 0.05)/length(df$shapiro),' (',sum(df$shapiro < 0.05),' studies)'))
-      }
-      
     }
+    
+    if (add_meta && nrow(df_meta) > 0) {
+      df_meta$label <- paste0(gsub("_reference_", " (", df_meta$name), ")\n", df_meta$n_studies, " ", ifelse(df_meta$n_studies == 1, "study", "studies"))
+      p <- p +
+        geom_point(data = df_meta, aes_string(x = "x_plot", y = y_var, color = "overarching_category"), shape = 8, size = 2) +
+        geom_text_repel(data = df_meta, aes_string(x = "x_plot", y = y_var, label = "label"), size = 2.2, segment.size = 0.3, force = 10, max.overlaps = Inf)
+    }
+    
+    fn_plot <- fn
+    this_fn <- paste0(fn_plot, "__fits", meta_str, '.pdf')
+    if (save_plots) {
+      ggsave(this_fn, plot = p, width = 5, height = 4)
+    } else {
+      show(p)
+    }
+    
+    # Save normality test results
+    if (save_plots  && plot_type != "mv") {
+      write.csv(df$shapiro, file=paste0(fn, '_shapiro.csv'), row.names=TRUE)
+      print(paste0('Proportion significantly non-normal: ', sum(df$shapiro < 0.05)/length(df$shapiro),' (',sum(df$shapiro < 0.05),' studies)'))
+    }
+
   }
   
   return(res)
