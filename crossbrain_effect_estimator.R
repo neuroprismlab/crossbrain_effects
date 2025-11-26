@@ -444,7 +444,6 @@ estimate_params <- function(df, df_meta, n_pts, main_title, fn, plot_type = "sd"
   # params
   nmax_extra_padding <- 1000 # so plot xlim extend a bit beyond max n
   use_char_mag <- FALSE
-  plot_with_inv_sqrt_n <- FALSE # FALSE for sqrt(n), TRUE for 1/sqrt(n)
   
   # Determine y variable and settings based on plot_type
   if (plot_type == "sd") {
@@ -492,210 +491,121 @@ estimate_params <- function(df, df_meta, n_pts, main_title, fn, plot_type = "sd"
     }
     predicted_y <- vector("list", length(unique_cats))
     names(predicted_y) <- unique_cats
+      
+    # fit meta-analysis nesting studies by dataset and overarching category
     
-    do_by_cat <- FALSE
+    # setup grouping variables
+    df$dataset_nested <- interaction(df$overarching_category, df$dataset, drop = TRUE)
     
-    if (do_by_cat) {
-      
-      # preallocate results
-      res <- vector("list", length(unique_cats))
-      
-      for (cat in unique_cats) {
-        
-        # setup df
-        df_cat <- df[df$overarching_category == cat, ]
-        # df_cat <- df[df$overarching_category == cat & !is.na(df$mv), ]
-        n_obs <- nrow(df_cat)
-        n_levels <- length(unique(df_cat$dataset))
-        
-        if (cat != "task activation") { # special procedure for activation
-          
-          if (plot_type == "mv") {
-            fit_cat <- lm(mv ~ 1, data=df_cat)
-          } else {
-            if (use_char_mag) {
-              fit_cat <- lm(char_mag ~ I(1/sqrt(n)), data=df_cat)
-            } else {
-              fit_cat <- lm(sd ~ I(1/sqrt(n)), data=df_cat)
-            }
-          }
-          predicted_y[[cat]] <- predict(fit_cat, n_seq, interval="confidence")
-          # }
-          
-        } else {
-          
-          # use slope from task connectivity to estimate intercept
-          
-          if (plot_type == "mv") { # same as above
-            
-            fit_cat <- lm(mv ~ 1, data=df_cat)
-            predicted_y[[cat]] <- predict(fit_cat, n_seq, interval="confidence")
-            
-          } else {
-            
-            # Get slope from previous fit
-            slope <- fit_cat$coefficients["I(1/sqrt(n))"]
-            
-            if (use_char_mag) { # different - fit intercept with slope fixed from connectivity
-              fit_cat2 <- lm(I(char_mag - I(slope * 1/sqrt(n))) ~ 1, data=df_cat)
-            } else {
-              fit_cat2 <- lm(I(sd - I(slope * 1/sqrt(n))) ~ 1, data=df_cat)
-            }
-            d <- model.matrix(~ I(1/sqrt(n)), data = n_seq)
-            
-            # Create combined coefficients: intercept from fit_cat2, slope from fit_cat
-            # also, corresponding variances for standard errors
-            combined_coef <- c(coef(fit_cat2)["(Intercept)"], slope)
-            names(combined_coef) <- c("(Intercept)", "I(1/sqrt(n))")
-            vcov_combined <- vcov(fit_cat)
-            vcov_combined["(Intercept)", "(Intercept)"] <- vcov(fit_cat2)["(Intercept)", "(Intercept)"]
-            
-            # Use combined coefficients for prediction
-            preds <- as.vector(d %*% combined_coef)
-            preds_se <- sqrt(diag(d %*% vcov_combined %*% t(d)))
-            lwr <- preds - 1.96 * preds_se
-            upr <- preds + 1.96 * preds_se
-            predicted_y[[cat]] <- cbind(fit = preds, lwr = lwr, upr = upr)
-            
-            fit_cat <- fit_cat2 # for getting Intercept est, lwr, upr below
-          }
-        }
-        
-        est <- summary(fit_cat)$coefficients[,"Estimate"]
-        lwr <- summary(fit_cat)$coefficients[,"Estimate"] - 1.96 * summary(fit_cat)$coefficients[,"Std. Error"]
-        upr <- summary(fit_cat)$coefficients[,"Estimate"] + 1.96 * summary(fit_cat)$coefficients[,"Std. Error"]
-        
-        if (plot_type == "mv" | cat == "task activation") {
-          res[[cat]] <- c(est = est, lwr = lwr, upr = upr)
-        } else {
-          res[[cat]] <- data.frame(est = est["(Intercept)"], lwr = lwr["(Intercept)"], upr = upr["(Intercept)"], row.names = NULL)
-        }
-        
-      }
-      
-      # Combine all categories into a tidy data frame
-      res <- do.call(rbind, res)
-      
-      
-    } else { # nesting within category, dataset x category
-      
-      # fit meta-analysis nesting studies by dataset and overarching category
-      
-      # setup grouping variables
-      df$dataset_nested <- interaction(df$overarching_category, df$dataset, drop = TRUE)
-      
-      if (plot_type == "mv") {
-        fit_all <- rma.mv(yi = mv, 
-                          V = vi_mv,  # approximate variance from CI
+    if (plot_type == "mv") {
+      fit_all <- rma.mv(yi = mv, 
+                        V = vi_mv,  # approximate variance from CI
+                        random = ~ 1 | overarching_category/dataset_nested,
+                        data = df,
+                        method = "REML")
+    } else {
+      if (use_char_mag) {
+        fit_all <- rma.mv(yi = char_mag, 
+                          V = vi_char_mag,  # approximate variance
+                          mods = ~ I(1/sqrt(n)),
                           random = ~ 1 | overarching_category/dataset_nested,
                           data = df,
                           method = "REML")
       } else {
-        if (use_char_mag) {
-          fit_all <- rma.mv(yi = char_mag, 
-                            V = vi_char_mag,  # approximate variance
-                            mods = ~ I(1/sqrt(n)),
-                            random = ~ 1 | overarching_category/dataset_nested,
-                            data = df,
-                            method = "REML")
-        } else {
-          fit_all <- rma.mv(yi = sd, 
-                            V = vi_sd,  # approximate variance
-                            mods = ~ I(1/sqrt(n)),
-                            random = ~ 1 | overarching_category/dataset_nested,
-                            data = df,
-                            method = "REML")
-        }
+        fit_all <- rma.mv(yi = sd, 
+                          V = vi_sd,  # approximate variance
+                          mods = ~ I(1/sqrt(n)),
+                          random = ~ 1 | overarching_category/dataset_nested,
+                          data = df,
+                          method = "REML")
       }
-      
-      # Extract estimates and confidence intervals from meta-analysis
-      # Extract category-specific random effects (BLUPs)
-      random_effects <- ranef(fit_all)
-      category_effects <- random_effects$overarching_category
-      
-      # Create results with category-specific intercepts
-      res <- vector("list", length(unique_cats))
-      names(res) <- unique_cats
-      predicted_y <- vector("list", length(unique_cats))
-      names(predicted_y) <- unique_cats
-      
-      for (cat in unique_cats) {
-        # Get category-specific intercept (overall + random effect)
-        if (cat %in% rownames(category_effects)) {
-          cat_intercept <- fit_all$beta[1] + category_effects[cat, "intrcpt"]
-          cat_intercept_se <- sqrt(fit_all$vb[1,1] + category_effects[cat, "se"]^2)
-        } else {
-          # If category not found, use overall intercept
-          cat_intercept <- NA
-          cat_intercept_se <- NA
-        }
-        
-        if (plot_type == "mv") {
-          # For intercept-only model
-          res[[cat]] <- data.frame(
-            est = cat_intercept,
-            lwr = cat_intercept - 1.96 * cat_intercept_se,
-            upr = cat_intercept + 1.96 * cat_intercept_se,
-            row.names = paste0(cat, "_intercept")
-          )
-          
-          # Create predicted values (constant line for mv)
-          preds <- rep(cat_intercept, length(n_seq$n))
-          preds_se <- rep(cat_intercept_se, length(n_seq$n))
-          lwr <- preds - 1.96 * preds_se
-          upr <- preds + 1.96 * preds_se
-          predicted_y[[cat]] <- cbind(fit = preds, lwr = lwr, upr = upr)
-          
-        } else {
-          # For models with moderators (intercept and slope)
-          # Note: slope is the same for all categories (fixed effect)
-          slope <- fit_all$beta[2]
-          slope_se <- sqrt(fit_all$vb[2,2])
-          
-          # Only include intercept in results (not slope)
-          res[[cat]] <- data.frame(
-            est = cat_intercept,
-            lwr = cat_intercept - 1.96 * cat_intercept_se,
-            upr = cat_intercept + 1.96 * cat_intercept_se,
-            row.names = paste0(cat, "_intercept")
-          )
-          
-          # Create predicted values with category-specific intercept
-          preds <- cat_intercept + slope * (1/sqrt(n_seq$n))
-          # Standard errors for predictions (more complex with random effects)
-          X_pred <- cbind(1, 1/sqrt(n_seq$n))
-          preds_se_fixed <- sqrt(diag(X_pred %*% fit_all$vb %*% t(X_pred)))
-          preds_se <- sqrt(preds_se_fixed^2 + cat_intercept_se^2)
-          lwr <- preds - 1.96 * preds_se
-          upr <- preds + 1.96 * preds_se
-          predicted_y[[cat]] <- cbind(fit = preds, lwr = lwr, upr = upr)
-        }
-      }
-      
-      # Combine results into single dataframe
-      res <- do.call(rbind, res)
-      
     }
     
-    # plot
-    if (plot_with_inv_sqrt_n) {
-      df$x_plot <- 1/sqrt(df$n)
-      df_meta$x_plot <- 1/sqrt(df_meta$n)
-      x_label <- "1 / sqrt(n)"
-      # nmax_plt is always defined; compute smallest positive n step from nmax_plt and n_pts
-      if (n_pts > 1) {
-        min_pos_n <- nmax_plt / (n_pts - 1)
+    # Extract estimates and confidence intervals from meta-analysis
+    # Extract category-specific random effects (BLUPs)
+    random_effects <- ranef(fit_all)
+    category_effects <- random_effects$overarching_category
+    
+    # Create results with category-specific intercepts
+    res <- vector("list", length(unique_cats))
+    names(res) <- unique_cats
+    predicted_y <- vector("list", length(unique_cats))
+    names(predicted_y) <- unique_cats
+    
+    for (cat in unique_cats) {
+      # Get category-specific intercept (overall + random effect)
+      if (cat %in% rownames(category_effects)) {
+        cat_intercept <- fit_all$beta[1] + category_effects[cat, "intrcpt"]
+        cat_intercept_se <- sqrt(fit_all$vb[1,1] + category_effects[cat, "se"]^2)
       } else {
-        min_pos_n <- 1
+        # If category not found, use overall intercept
+        cat_intercept <- NA
+        cat_intercept_se <- NA
       }
-      x_limits <- c(0, 1 / sqrt(min_pos_n))
-    } else {
-      df$x_plot <- sqrt(df$n)
-      df_meta$x_plot <- sqrt(df_meta$n)
-      x_label <- "sqrt(n)"
-      # use nmax_plt (prediction max) to set the upper x limit
-      x_limits <- c(0, sqrt(nmax_plt))
+      
+      if (plot_type == "mv") {
+        # For intercept-only model
+        res[[cat]] <- data.frame(
+          est = cat_intercept,
+          lwr = cat_intercept - 1.96 * cat_intercept_se,
+          upr = cat_intercept + 1.96 * cat_intercept_se,
+          row.names = paste0(cat, "_intercept")
+        )
+        
+        # Create predicted values (constant line for mv)
+        preds <- rep(cat_intercept, length(n_seq$n))
+        preds_se <- rep(cat_intercept_se, length(n_seq$n))
+        lwr <- preds - 1.96 * preds_se
+        upr <- preds + 1.96 * preds_se
+        predicted_y[[cat]] <- cbind(fit = preds, lwr = lwr, upr = upr)
+        
+      } else {
+        # For models with moderators (intercept and slope)
+        # Note: slope is the same for all categories (fixed effect)
+        slope <- fit_all$beta[2]
+        slope_se <- sqrt(fit_all$vb[2,2])
+        
+        # Only include intercept in results (not slope)
+        res[[cat]] <- data.frame(
+          est = cat_intercept,
+          lwr = cat_intercept - 1.96 * cat_intercept_se,
+          upr = cat_intercept + 1.96 * cat_intercept_se,
+          row.names = paste0(cat, "_intercept")
+        )
+        
+        # Create predicted values with category-specific intercept
+        preds <- cat_intercept + slope * (1/sqrt(n_seq$n))
+        # Standard errors for predictions (more complex with random effects)
+        X_pred <- cbind(1, 1/sqrt(n_seq$n))
+        preds_se_fixed <- sqrt(diag(X_pred %*% fit_all$vb %*% t(X_pred)))
+        preds_se <- sqrt(preds_se_fixed^2 + cat_intercept_se^2)
+        lwr <- preds - 1.96 * preds_se
+        upr <- preds + 1.96 * preds_se
+        predicted_y[[cat]] <- cbind(fit = preds, lwr = lwr, upr = upr)
+      }
     }
+    
+    # Combine results into single dataframe
+    res <- do.call(rbind, res)
+    
+    # plot
+    df$x_plot <- sqrt(df$n)
+    df_meta$x_plot <- sqrt(df_meta$n)
+    x_label <- "sqrt(n)"
+    # use nmax_plt (prediction max) to set the upper x limit
+    x_limits <- c(0, sqrt(nmax_plt))
+    # OLD: for plot_with_inv_sqrt_n :
+    # df$x_plot <- 1/sqrt(df$n)
+    # df_meta$x_plot <- 1/sqrt(df_meta$n)
+    # x_label <- "1 / sqrt(n)"
+    # # nmax_plt is always defined; compute smallest positive n step from nmax_plt and n_pts
+    # if (n_pts > 1) {
+    #   min_pos_n <- nmax_plt / (n_pts - 1)
+    # } else {
+    #   min_pos_n <- 1
+    # }
+    # x_limits <- c(0, 1 / sqrt(min_pos_n))
+    
     cats <- levels(df$overarching_category)
     color_map <- setNames(RColorBrewer::brewer.pal(length(cats), "Set1"), cats)
     
@@ -726,7 +636,8 @@ estimate_params <- function(df, df_meta, n_pts, main_title, fn, plot_type = "sd"
       pred_mat <- predicted_y[[cat]]
       if (!is.null(pred_mat) && is.matrix(pred_mat) && all(c("fit","lwr","upr") %in% colnames(pred_mat)) && nrow(pred_mat) == length(n_seq$n)) {
         pred_df <- data.frame(
-          x_plot = if (plot_with_inv_sqrt_n) 1/sqrt(n_seq$n) else sqrt(n_seq$n),
+          x_plot = sqrt(n_seq$n),
+          # x_plot = 1/sqrt(n_seq$n), # OLD: for plot_with_inv_sqrt_n
           fit = pred_mat[,"fit"],
           lwr = pred_mat[,"lwr"],
           upr = pred_mat[,"upr"],
