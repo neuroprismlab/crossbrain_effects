@@ -1,7 +1,7 @@
-#' Create results manuscript plots
+#' Estimate cross-brain effects
 #' Authors: Stephanie Noble & Hallee Shearer
 #'
-#' This function is the master plotter for making effect size plots for the results manuscript.
+#' Estimate and plot cross-brain effect size estimates from BrainEffeX data
 #' @import ggplot2
 #' @import dplyr
 #' @import ggrepel
