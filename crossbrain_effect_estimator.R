@@ -17,12 +17,12 @@
 #' @examples
 #' # Example usage
 #' \dontrun{
-#' plot_results(estimate = 'd', fn_basedir = 'results/', v_data = v)
+#' estimate_xb_effects(estimate = 'd', fn_basedir = 'results/', v_data = v)
 #' }
 
 # ------------- MAIN -------------------------
 
-plot_results <- function(estimate = 'd', fn_basedir, v_data, combo_name, save_plots = TRUE) {
+estimate_xb_effects <- function(estimate = 'd', fn_basedir, v_data, combo_name, save_plots = TRUE) {
 
 ## Setup
   

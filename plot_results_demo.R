@@ -33,6 +33,6 @@ for (pooling_method in pooling_methods) {
   print(paste0('Doing pooling method: ', pooling_method))
   combo_name <- paste0('pooling.', pooling_method, '.motion.',motion_method,'.mv.',mv_method)
   output_basedir <- paste0(output_dir, combo_name,'/')  # user-defined path to save the plots
-  plot_results(estimate, output_basedir, v, combo_name, save_plots)
+  estimate_xb_effects(estimate, output_basedir, v, combo_name, save_plots)
 }
 
