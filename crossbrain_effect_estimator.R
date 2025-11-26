@@ -510,32 +510,6 @@ estimate_params <- function(df, df_meta, n_pts, main_title, fn, plot_type = "sd"
         
         if (cat != "task activation") { # special procedure for activation
           
-          # # estimate fits with nesting by dataset, unless only one unique dataset
-          # if (length(unique(df_cat$dataset)) > 2) {
-          #   
-          #   # fit
-          #   if (plot_type == "mv") {
-          #     fit_cat <- lmer(mv ~ 1 + (1|dataset), data = df_cat)
-          #     d <- as.matrix(model.matrix(~ 1, data = n_seq))
-          #   } else {
-          #     if (use_char_mag) {
-          #       fit_cat <- lmer(char_mag ~ I(1/sqrt(n)) + (1|dataset), data = df_cat)
-          #     } else {
-          #       fit_cat <- lmer(sd ~ I(1/sqrt(n)) + (1|dataset), data = df_cat)
-          #     }
-          #     # fit_cat <- lmer(char_mag ~ I(1/sqrt(n)) + (1|dataset), data = df_cat)
-          #     d <- model.matrix(~ I(1/sqrt(n)), data = n_seq)
-          #   }
-          #   
-          #   # Use fixed effects for prediction
-          #   preds <- as.vector(d %*% fixef(fit_cat) )
-          #   preds_se <- sqrt(diag(d %*% vcov(fit_cat) %*% t(d)))
-          #   lwr <- preds - 1.96 * preds_se
-          #   upr <- preds + 1.96 * preds_se
-          #   predicted_y[[cat]] <- cbind(fit = preds, lwr = lwr, upr = upr)
-          #   
-          # } else {
-          
           if (plot_type == "mv") {
             fit_cat <- lm(mv ~ 1, data=df_cat)
           } else {
@@ -553,11 +527,6 @@ estimate_params <- function(df, df_meta, n_pts, main_title, fn, plot_type = "sd"
           # use slope from task connectivity to estimate intercept
           
           if (plot_type == "mv") { # same as above
-            # fit_cat2 <- lm(mv ~ 1, data=df_cat)
-            # # For mv, just use fit_cat2 estimates directly
-            # d <- model.matrix(~ 1, data = n_seq)
-            # preds <- as.vector(d %*% coef(fit_cat2))
-            # preds_se <- sqrt(diag(d %*% vcov(fit_cat2) %*% t(d)))
             
             fit_cat <- lm(mv ~ 1, data=df_cat)
             predicted_y[[cat]] <- predict(fit_cat, n_seq, interval="confidence")
@@ -565,7 +534,6 @@ estimate_params <- function(df, df_meta, n_pts, main_title, fn, plot_type = "sd"
           } else {
             
             # Get slope from previous fit
-            # slope <- fixef(fit_cat)["I(1/sqrt(n))"]
             slope <- fit_cat$coefficients["I(1/sqrt(n))"]
             
             if (use_char_mag) { # different - fit intercept with slope fixed from connectivity
@@ -597,9 +565,6 @@ estimate_params <- function(df, df_meta, n_pts, main_title, fn, plot_type = "sd"
         lwr <- summary(fit_cat)$coefficients[,"Estimate"] - 1.96 * summary(fit_cat)$coefficients[,"Std. Error"]
         upr <- summary(fit_cat)$coefficients[,"Estimate"] + 1.96 * summary(fit_cat)$coefficients[,"Std. Error"]
         
-        # max_val[[cat]] <- predicted_y[[cat]][length(n_seq$n),]
-        # res[[cat]] <- c(beta[[cat]], max_val[[cat]])
-        
         if (plot_type == "mv" | cat == "task activation") {
           res[[cat]] <- c(est = est, lwr = lwr, upr = upr)
         } else {
@@ -618,13 +583,11 @@ estimate_params <- function(df, df_meta, n_pts, main_title, fn, plot_type = "sd"
       
       # setup grouping variables
       df$dataset_nested <- interaction(df$overarching_category, df$dataset, drop = TRUE)
-      # df$study_nested <- interaction(df$overarching_category, df$dataset, df$name, drop = TRUE)
       
       if (plot_type == "mv") {
         fit_all <- rma.mv(yi = mv, 
                           V = vi_mv,  # approximate variance from CI
                           random = ~ 1 | overarching_category/dataset_nested,
-                          # random = ~ 1 | overarching_category/dataset_nested/study_nested,
                           data = df,
                           method = "REML")
       } else {
@@ -796,7 +759,6 @@ estimate_params <- function(df, df_meta, n_pts, main_title, fn, plot_type = "sd"
       write.csv(df$shapiro, file=paste0(fn, '_shapiro.csv'), row.names=TRUE)
       print(paste0('Proportion significantly non-normal: ', sum(df$shapiro < 0.05)/length(df$shapiro),' (',sum(df$shapiro < 0.05),' studies)'))
     }
-
   }
   
   return(res)
