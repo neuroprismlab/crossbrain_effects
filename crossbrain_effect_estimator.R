@@ -436,7 +436,7 @@ get_study_summaries <- function(data, study, estimate, combo_name) {
 
 # Function for plotting effect sizes (mean, sd, n) for each study - point est and conservative  
 
-estimate_params <- function(df, df_meta, n_pts, main_title, fn, plot_type = "sd") {
+estimate_params <- function(df, df_meta, n_pts, main_title, fn, plot_type = "crossvariable") {
   
   print(paste0('Fitting lines for ', main_title))
   
@@ -445,17 +445,17 @@ estimate_params <- function(df, df_meta, n_pts, main_title, fn, plot_type = "sd"
   use_char_mag <- FALSE
   
   # Determine y variable and settings based on plot_type
-  if (plot_type == "sd") {
+  if (plot_type == "crossvariable") {
     y_var <- "sd"
     y_label <- "Observed cross-brain effect size variance (var(Θ))"
     fit_lines <- TRUE
     y_limits <- c(-0.05, 0.5)
-  } else if (plot_type == "mv") {
+  } else if (plot_type == "mv") { # note: all the same procedures here can also be used for the univariate case, just need to change the "mv" variable
     y_var <- "mv"
-    y_label <- "Observed effect size (Θ)"
+    y_label <- "Observed multivariate effect size (Θ)"
     y_limits <- NULL  # Let ggplot auto-scale
   } else {
-    stop("plot_type must be either 'sd' or 'mv'")
+    stop("plot_type must be either 'crossvariable' or 'mv'")
   }
   
   # sort by sample size
