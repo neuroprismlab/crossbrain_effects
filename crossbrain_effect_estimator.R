@@ -435,7 +435,6 @@ get_study_summaries <- function(data, study, estimate, combo_name) {
 ########### Estimate Parameters & Plot Fits ########### 
 
 # Function for plotting effect sizes (mean, sd, n) for each study - point est and conservative  
-# Add a flag to toggle between sqrt(n) and 1/sqrt(n) for plotting
 
 estimate_params <- function(df, df_meta, n_pts, main_title, fn, plot_type = "sd") {
   
@@ -448,12 +447,12 @@ estimate_params <- function(df, df_meta, n_pts, main_title, fn, plot_type = "sd"
   # Determine y variable and settings based on plot_type
   if (plot_type == "sd") {
     y_var <- "sd"
-    y_label <- "SD(D) (across brain areas)"
+    y_label <- "Observed cross-brain effect size variance (var(Θ))"
     fit_lines <- TRUE
     y_limits <- c(-0.05, 0.5)
   } else if (plot_type == "mv") {
     y_var <- "mv"
-    y_label <- "Multivariate effect size"
+    y_label <- "Observed effect size (Θ)"
     y_limits <- NULL  # Let ggplot auto-scale
   } else {
     stop("plot_type must be either 'sd' or 'mv'")
@@ -507,14 +506,14 @@ estimate_params <- function(df, df_meta, n_pts, main_title, fn, plot_type = "sd"
       if (use_char_mag) {
         fit_all <- rma.mv(yi = char_mag, 
                           V = vi_char_mag,  # approximate variance
-                          mods = ~ I(1/sqrt(n)),
+                          mods = ~ I(1/n),
                           random = ~ 1 | overarching_category/dataset_nested,
                           data = df,
                           method = "REML")
       } else {
         fit_all <- rma.mv(yi = sd, 
                           V = vi_sd,  # approximate variance
-                          mods = ~ I(1/sqrt(n)),
+                          mods = ~ I(1/n),
                           random = ~ 1 | overarching_category/dataset_nested,
                           data = df,
                           method = "REML")
@@ -574,9 +573,9 @@ estimate_params <- function(df, df_meta, n_pts, main_title, fn, plot_type = "sd"
         )
         
         # Create predicted values with category-specific intercept
-        preds <- cat_intercept + slope * (1/sqrt(n_seq$n))
+        preds <- cat_intercept + slope * 1/n_seq$n
         # Standard errors for predictions (more complex with random effects)
-        X_pred <- cbind(1, 1/sqrt(n_seq$n))
+        X_pred <- cbind(1, 1/n_seq$n)
         preds_se_fixed <- sqrt(diag(X_pred %*% fit_all$vb %*% t(X_pred)))
         preds_se <- sqrt(preds_se_fixed^2 + cat_intercept_se^2)
         lwr <- preds - 1.96 * preds_se
@@ -589,11 +588,11 @@ estimate_params <- function(df, df_meta, n_pts, main_title, fn, plot_type = "sd"
     res <- do.call(rbind, res)
     
     # plot
-    df$x_plot <- sqrt(df$n)
-    df_meta$x_plot <- sqrt(df_meta$n)
-    x_label <- "sqrt(n)"
+    df$x_plot <- df$n
+    df_meta$x_plot <- df_meta$n
+    x_label <- "sample size"
     # use nmax_plt (prediction max) to set the upper x limit
-    x_limits <- c(0, sqrt(nmax_plt))
+    x_limits <- c(0, nmax_plt)
     # OLD: for plot_with_inv_sqrt_n :
     # df$x_plot <- 1/sqrt(df$n)
     # df_meta$x_plot <- 1/sqrt(df_meta$n)
@@ -636,7 +635,7 @@ estimate_params <- function(df, df_meta, n_pts, main_title, fn, plot_type = "sd"
       pred_mat <- predicted_y[[cat]]
       if (!is.null(pred_mat) && is.matrix(pred_mat) && all(c("fit","lwr","upr") %in% colnames(pred_mat)) && nrow(pred_mat) == length(n_seq$n)) {
         pred_df <- data.frame(
-          x_plot = sqrt(n_seq$n),
+          x_plot = n_seq$n,
           # x_plot = 1/sqrt(n_seq$n), # OLD: for plot_with_inv_sqrt_n
           fit = pred_mat[,"fit"],
           lwr = pred_mat[,"lwr"],
