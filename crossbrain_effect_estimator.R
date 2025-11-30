@@ -234,6 +234,55 @@ r_sq_se <- function(r_sq, n) {
   return(se)
 }
 
+# power functions - provided by Thomas Nichols
+
+# pi0  : proportion of true nulls
+# delta: noncentrality parameter = d * sqrt(n)
+# sigma_delta: standard deviation of noncentrality parameter across tests
+# alphaFDR : target FDR level (e.g. 0.05)
+
+# CDF of non-null p-values under H1
+# Usage:
+#   For FDR, BHpower(pi0, d*sqrt(n), alphaFDR)
+#   For uncorrected, power=F1(alphaFDR,d*sqrt(n))
+#   For Bonferroni, power=F1(alphaFDR/k,d*sqrt(n))
+F1 <- function(u, delta, sigma_delta=0)  {
+  1 - pnorm((qnorm(1 - u) - delta) / sqrt(1 + sigma_delta^2))
+}
+
+# BH-FDR threshold anticipated by the process approach to FDR
+BHthresh <- function(pi0, delta, alphaFDR,sigma_delta=0) {
+  pi1 <- 1 - pi0
+  
+  # FDR Power Implicit Equation, solved for pp (p')
+  #    pi0 * pp + pi1 * F1(t) = pp / alphaFDR
+  # pp is the long-run p-value threshold for this setting, and power
+  # is then usual power at this threshold.
+  f <- function(t) {
+    pi0 * t + pi1 * F1(t,delta,sigma_delta) - t / alphaFDR
+  }
+  
+  ## Trivial solution t = 0 always exists.
+  ## Look for a nontrivial root in (0, alphaFDR), if it exists.
+  lower <- 1e-10
+  upper <- min(alphaFDR - 1e-10, 1 - 1e-10)
+  
+  if (f(upper) * f(lower) > 0) {
+    ## No sign change -> only solution is t* = 0
+    pp <- 0
+  } else {
+    pp <- uniroot(f, c(lower, upper))$root
+  }
+  
+  pp
+}
+
+# Average BH power (per non-null) for given pi0, delta, alphaFDR
+BHpower <- function(pi0, delta, alphaFDR,sigma_delta=0) {
+  pp <- BHthresh(pi0, delta, alphaFDR,sigma_delta)
+  if (pp == 0) return(0)
+  F1(pp, delta, sigma_delta)
+}
 
 
 # ------------- ORGANIZING, FITTING, AND PLOTTING -------------------------
