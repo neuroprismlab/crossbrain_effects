@@ -198,6 +198,7 @@ if (plot_extra) {
 
 # ------------- HELPER FUNCTIONS -------------------------
 
+# empirical sd counterpart
 
 get_characteristic_magnitude_for_sd <- function(mean, sd) {
   # find empirical counterpart to standard deviation in describing distribution spread
@@ -215,8 +216,8 @@ get_characteristic_magnitude_for_sd <- function(mean, sd) {
   return(sd_emp)
 }
 
+# effect size standard error functions
 
-# helper
 d_se <- function(d, n1, n2 = NULL) {
   if (is.null(n2)) { # one-sample
     se <- sqrt(1 / n1 + (d^2 / (2 * n1)))
@@ -226,7 +227,6 @@ d_se <- function(d, n1, n2 = NULL) {
   return(se)
 }
 
-# helper
 r_sq_se <- function(r_sq, n) {
   r <- sqrt(r_sq)
   se_r <- sqrt((1 - r^2) / (n - 2));
