@@ -448,7 +448,6 @@ estimate_params <- function(df, df_meta, n_pts, main_title, fn, plot_type = "cro
   if (plot_type == "crossvariable") {
     y_var <- "sd"
     y_label <- "Observed cross-brain effect size variance (var(Θ))"
-    fit_lines <- TRUE
     y_limits <- c(-0.05, 0.5)
   } else if (plot_type == "mv") { # note: all the same procedures here can also be used for the univariate case, just need to change the "mv" variable
     y_var <- "mv"
