@@ -56,7 +56,7 @@ summary_data <- get_study_summaries(v_data$data, v_data$study, estimate, combo_n
 summary_data_cons <- summary_data
 summary_data_cons$mean <- summary_data_cons$mean_cons
 summary_data_cons$var_xv <- summary_data_cons$var_xv_cons
-summary_data_cons$char_mag <- summary_data_cons$char_mag_cons
+summary_data_cons$var_xv__emp <- summary_data_cons$var_xv__emp_cons
 
 # 2. using meta-analysis results
 
@@ -139,7 +139,7 @@ summary_data__meta <- get_study_summaries(v_data$meta_category$data, v_data$meta
 summary_data_cons__meta <- summary_data__meta
 summary_data_cons__meta$mean <- summary_data_cons__meta$mean_cons
 summary_data_cons__meta$var_xv <- summary_data_cons__meta$var_xv_cons
-summary_data_cons__meta$char_mag <- summary_data_cons__meta$char_mag_cons
+summary_data_cons__meta$var_xv__emp <- summary_data_cons__meta$var_xv__emp_cons
 
 ## Extra info
 
@@ -199,19 +199,20 @@ if (plot_extra) {
 # ------------- HELPER FUNCTIONS -------------------------
 
 
-get_characteristic_magnitude <- function(mean, sd) {
-  # search over values to find characteristic magnitude where 68% of values are < |mag|
-  mag <- 0
+get_characteristic_magnitude_for_sd <- function(mean, sd) {
+  # find empirical counterpart to standard deviation in describing distribution spread
+  # by searching over values to find characteristic magnitude where 68% of values are < |mag|
+  sd_emp <- 0
   # first pass
-  while ((pnorm(mag, mean = mean, sd = sd) - pnorm(-mag, mean = mean, sd = sd)) < 0.68) {
-    mag <- mag + 0.01
+  while ((pnorm(sd_emp, mean = mean, sd = sd) - pnorm(-sd_emp, mean = mean, sd = sd)) < 0.68) {
+    sd_emp <- sd_emp + 0.01
   }
   # refine estimate
-  mag <- mag - 0.01
-  while ((pnorm(mag, mean = mean, sd = sd) - pnorm(-mag, mean = mean, sd = sd)) < 0.68) {
-    mag <- mag + 0.001
+  sd_emp <- sd_emp - 0.01
+  while ((pnorm(sd_emp, mean = mean, sd = sd) - pnorm(-sd_emp, mean = mean, sd = sd)) < 0.68) {
+    sd_emp <- sd_emp + 0.001
   }
-  return(mag)
+  return(sd_emp)
 }
 
 
@@ -246,16 +247,16 @@ get_study_summaries <- function(data, study, estimate, combo_name) {
   d_name <- numeric(length(data))
   d_mean <- numeric(length(data))
   d_var_xv <- numeric(length(data))
-  d_characteristic_mag <- numeric(length(data))
+  d_var_xv__emp <- numeric(length(data))
   d_cons_mean <- numeric(length(data))
   d_cons_var_xv <- numeric(length(data))
-  d_characteristic_mag_cons <- numeric(length(data))
+  d_var_xv__emp_cons <- numeric(length(data))
   d_n <- numeric(length(data))
   d_mv <- numeric(length(data))
   d_mv_lb <- numeric(length(data))
   d_mv_ub <- numeric(length(data))
   vi <- numeric(length(data))
-  vi_char_mag <- numeric(length(data))
+  vi_var_xv__emp <- numeric(length(data))
   vi_mv <- numeric(length(data))
   shapiro <- numeric(length(data))
   
@@ -282,7 +283,7 @@ get_study_summaries <- function(data, study, estimate, combo_name) {
     
     d_mean[i] <- mean(d)
     d_var_xv[i] <- var(d)
-    d_characteristic_mag[i] <- get_characteristic_magnitude(d_mean[i], d_var_xv[i])
+    d_var_xv__emp[i] <- (get_characteristic_magnitude_for_sd(d_mean[i], sqrt(d_var_xv[i])))^2
     
     # 2. Get conservative estimate mean and sd across vars
     # from prep_data_for_plot.R
@@ -325,7 +326,7 @@ get_study_summaries <- function(data, study, estimate, combo_name) {
     
     d_cons_mean[i] <- mean(sorted_cons_estimate)
     d_cons_var_xv[i] <- var(sorted_cons_estimate)
-    d_characteristic_mag_cons[i] <- get_characteristic_magnitude(d_cons_mean[i], d_cons_var_xv[i])
+    d_var_xv__emp_cons[i] <- (get_characteristic_magnitude_for_sd(d_cons_mean[i], sqrt(d_cons_var_xv[i])))^2
     
     # 3. Get multivariate effect size and bounds if available
     
@@ -350,11 +351,11 @@ get_study_summaries <- function(data, study, estimate, combo_name) {
         # get var for meta
         if (estimate == "d") {
           vi[i] <- d_se(d_var_xv[i], data[[i]][[combo_name]]$n1, data[[i]][[combo_name]]$n2)^2
-          vi_char_mag[i] <- d_se(d_characteristic_mag[i], data[[i]][[combo_name]]$n1, data[[i]][[combo_name]]$n2)^2
+          vi_var_xv__emp[i] <- d_se(d_var_xv__emp[i], data[[i]][[combo_name]]$n1, data[[i]][[combo_name]]$n2)^2
           vi_mv[i] <- d_se(d_mv[i], data[[i]][[combo_name]]$n1, data[[i]][[combo_name]]$n2)^2
         } else if (estimate == "r_sq") {
           vi[i] <- r_sq_se(d_var_xv[i], data[[i]][[combo_name]]$n1 + data[[i]][[combo_name]]$n2)^2
-          vi_char_mag[i] <- r_sq_se(d_characteristic_mag[i], data[[i]][[combo_name]]$n1 + data[[i]][[combo_name]]$n2)^2
+          vi_var_xv__emp[i] <- r_sq_se(d_var_xv__emp[i], data[[i]][[combo_name]]$n1 + data[[i]][[combo_name]]$n2)^2
           vi_mv[i] <- r_sq_se(d_mv[i], data[[i]][[combo_name]]$n1 + data[[i]][[combo_name]]$n2)^2
         }
       } else {
@@ -364,7 +365,7 @@ get_study_summaries <- function(data, study, estimate, combo_name) {
         # (add helper alongside other se estimators below)
         d_n[i] <- data[[i]][[combo_name]]$n
         vi[i] <- NA
-        vi_char_mag[i] <- NA
+        vi_var_xv__emp[i] <- NA
         vi_mv[i] <- NA
       }
     } else if (study$orig_stat_type[[i]] == "t" || study$orig_stat_type[[i]] == "r") {
@@ -373,16 +374,16 @@ get_study_summaries <- function(data, study, estimate, combo_name) {
       if (estimate == "d") {
         if (study$orig_stat_type[[i]] == "r") { # treat as 2-sample t-test
           vi[i] <- d_se(d_var_xv[i], d_n[i]/2, d_n[i]/2)^2
-          vi_char_mag[i] <- d_se(d_characteristic_mag[i], d_n[i]/2, d_n[i]/2)^2
+          vi_var_xv__emp[i] <- d_se(d_var_xv__emp[i], d_n[i]/2, d_n[i]/2)^2
           vi_mv[i] <- d_se(d_mv[i], d_n[i]/2, d_n[i]/2)^2
         } else { # normal 1-sample t-test
           vi[i] <- d_se(d_var_xv[i], d_n[i])^2
-          vi_char_mag[i] <- d_se(d_characteristic_mag[i], d_n[i])^2
+          vi_var_xv__emp[i] <- d_se(d_var_xv__emp[i], d_n[i])^2
           vi_mv[i] <- d_se(d_mv[i], d_n[i])^2
         }
       } else if (estimate == "r_sq") {
         vi[i] <- r_sq_se(d_var_xv[i], d_n[i])^2
-        vi_char_mag[i] <- r_sq_se(d_characteristic_mag[i], d_n[i])^2
+        vi_var_xv__emp[i] <- r_sq_se(d_var_xv__emp[i], d_n[i])^2
         vi_mv[i] <- r_sq_se(d_mv[i], d_n[i])^2
       }
     } else {
@@ -405,7 +406,7 @@ get_study_summaries <- function(data, study, estimate, combo_name) {
   
   # set up final data frame
   
-  df <- data.frame(name = names(data), mean = d_mean, var_xv = d_var_xv, char_mag = d_characteristic_mag, mean_cons = d_cons_mean, var_xv_cons = d_cons_var_xv, char_mag_cons = d_characteristic_mag_cons, n = d_n, category = as.factor(study$category), dataset = I(study$dataset), ref = study$ref, orig_stat_type = study$orig_stat_type, mv = d_mv, mv_lb = d_mv_lb, mv_ub = d_mv_ub, vi_var_xv = vi, vi_char_mag = vi_char_mag, vi_mv = vi_mv, shapiro = shapiro, stringsAsFactors = FALSE)
+  df <- data.frame(name = names(data), mean = d_mean, var_xv = d_var_xv, var_xv__emp = d_var_xv__emp, mean_cons = d_cons_mean, var_xv_cons = d_cons_var_xv, var_xv__emp_cons = d_var_xv__emp_cons, n = d_n, category = as.factor(study$category), dataset = I(study$dataset), ref = study$ref, orig_stat_type = study$orig_stat_type, mv = d_mv, mv_lb = d_mv_lb, mv_ub = d_mv_ub, vi_var_xv = vi, vi_var_xv__emp = vi_var_xv__emp, vi_mv = vi_mv, shapiro = shapiro, stringsAsFactors = FALSE)
   
   # for meta: if exists, add n_studies
   if ("n_studies" %in% colnames(study)) {
@@ -442,7 +443,7 @@ estimate_params <- function(df, df_meta, n_pts, main_title, fn, plot_type = "cro
   
   # params
   nmax_extra_padding <- 1000 # so plot xlim extend a bit beyond max n
-  use_char_mag <- FALSE
+  use_var_xv__emp <- FALSE
   
   # Determine y variable and settings based on plot_type
   if (plot_type == "crossvariable") {
@@ -502,9 +503,9 @@ estimate_params <- function(df, df_meta, n_pts, main_title, fn, plot_type = "cro
                         data = df,
                         method = "REML")
     } else {
-      if (use_char_mag) {
-        fit_all <- rma.mv(yi = char_mag, 
-                          V = vi_char_mag,  # approximate variance
+      if (use_var_xv__emp) {
+        fit_all <- rma.mv(yi = var_xv__emp, 
+                          V = vi_var_xv__emp,  # approximate variance
                           mods = ~ I(1/n),
                           random = ~ 1 | overarching_category/dataset_nested,
                           data = df,
