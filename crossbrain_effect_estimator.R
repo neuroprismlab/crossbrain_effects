@@ -725,7 +725,7 @@ plot_densities <- function(res, res_mv,  n_pts, fn_basedir, cats, cat_colors, sa
       }
       
     } else {
-      sigmas <- c(res[cat,"lwr"], res[cat,"est"], res[cat,"upr"])
+      sigmas <- sqrt(c(res[cat,"lwr"], res[cat,"est"], res[cat,"upr"]))
       # print(sigmas)
       names(sigmas) <- c('lb','est','ub')
       sigmas_master <- rbind(sigmas_master, sigmas)
