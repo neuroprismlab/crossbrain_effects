@@ -977,9 +977,8 @@ make_required_n_df <- function(n_pts, sigmas_master, res_mv = NULL, do_mv = FALS
       
     } else {
       sigmas <- sigmas_master[cat, ]
-      y <- dnorm(d, mean = 0, sd = as.numeric(sigmas["ub"]))
-      
-      
+      y <- dnorm(d, mean = 0, sd = as.numeric(sigmas["est"]))
+
       n_detect <- sapply(d, function(dd) safe_pwr(dd, test_type))
       bin_indices <- cut(n_detect, breaks = n_bins, include.lowest = TRUE, labels = bin_labels)
     }
