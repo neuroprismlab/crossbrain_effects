@@ -40,7 +40,7 @@ library(metafor)
 n_large_threshold <- 900
 cats <- c("psychological", "physical", "task activation", "task connectivity")
 cat_colors <- RColorBrewer::brewer.pal(length(cats), "Set1")
-n_pts <- 1000
+n_pts <- 10000
 
 # make output directory if it doesn't exist
 if (!dir.exists(fn_basedir)) {
@@ -301,6 +301,7 @@ get_study_summaries <- function(data, study, estimate, combo_name) {
   d_cons_var_xv <- numeric(length(data))
   d_var_xv__emp_cons <- numeric(length(data))
   d_n <- numeric(length(data))
+  d_k <- numeric(length(data))
   d_mv <- numeric(length(data))
   d_mv_lb <- numeric(length(data))
   d_mv_ub <- numeric(length(data))
@@ -417,6 +418,7 @@ get_study_summaries <- function(data, study, estimate, combo_name) {
         vi_var_xv__emp[i] <- NA
         vi_mv[i] <- NA
       }
+      d_k[i] <- 4
     } else if (study$orig_stat_type[[i]] == "t" || study$orig_stat_type[[i]] == "r") {
     # if (!is.null(data[[i]][[combo_name]]$n)) {
       d_n[i] <- data[[i]][[combo_name]]$n
@@ -425,15 +427,18 @@ get_study_summaries <- function(data, study, estimate, combo_name) {
           vi[i] <- d_se(d_var_xv[i], d_n[i]/2, d_n[i]/2)^2
           vi_var_xv__emp[i] <- d_se(d_var_xv__emp[i], d_n[i]/2, d_n[i]/2)^2
           vi_mv[i] <- d_se(d_mv[i], d_n[i]/2, d_n[i]/2)^2
+          d_k[i] <- 4
         } else { # normal 1-sample t-test
           vi[i] <- d_se(d_var_xv[i], d_n[i])^2
           vi_var_xv__emp[i] <- d_se(d_var_xv__emp[i], d_n[i])^2
           vi_mv[i] <- d_se(d_mv[i], d_n[i])^2
+          d_k[i] <- 1
         }
       } else if (estimate == "r_sq") {
         vi[i] <- r_sq_se(d_var_xv[i], d_n[i])^2
         vi_var_xv__emp[i] <- r_sq_se(d_var_xv__emp[i], d_n[i])^2
         vi_mv[i] <- r_sq_se(d_mv[i], d_n[i])^2
+        d_k[i] <- 4
       }
     } else {
       d_n[i] <- NA
@@ -455,7 +460,7 @@ get_study_summaries <- function(data, study, estimate, combo_name) {
   
   # set up final data frame
   
-  df <- data.frame(name = names(data), mean = d_mean, var_xv = d_var_xv, var_xv__emp = d_var_xv__emp, mean_cons = d_cons_mean, var_xv_cons = d_cons_var_xv, var_xv__emp_cons = d_var_xv__emp_cons, n = d_n, category = as.factor(study$category), dataset = I(study$dataset), ref = study$ref, orig_stat_type = study$orig_stat_type, mv = d_mv, mv_lb = d_mv_lb, mv_ub = d_mv_ub, vi_var_xv = vi, vi_var_xv__emp = vi_var_xv__emp, vi_mv = vi_mv, shapiro = shapiro, stringsAsFactors = FALSE)
+  df <- data.frame(name = names(data), mean = d_mean, var_xv = d_var_xv, var_xv__emp = d_var_xv__emp, mean_cons = d_cons_mean, var_xv_cons = d_cons_var_xv, var_xv__emp_cons = d_var_xv__emp_cons, n = d_n, category = as.factor(study$category), dataset = I(study$dataset), ref = study$ref, orig_stat_type = study$orig_stat_type, mv = d_mv, mv_lb = d_mv_lb, mv_ub = d_mv_ub, vi_var_xv = vi, vi_var_xv__emp = vi_var_xv__emp, vi_mv = vi_mv, k = d_k, shapiro = shapiro, stringsAsFactors = FALSE)
   
   # for meta: if exists, add n_studies
   if ("n_studies" %in% colnames(study)) {
@@ -491,14 +496,14 @@ estimate_params <- function(df, df_meta, n_pts, main_title, fn, plot_type = "cro
   print(paste0('Fitting lines for ', main_title))
   
   # params
-  nmax_extra_padding <- 1000 # so plot xlim extend a bit beyond max n
+  ndivk_max_extra_padding <- 1000 # so plot xlim extend a bit beyond max n
   use_var_xv__emp <- FALSE
   
   # Determine y variable and settings based on plot_type
   if (plot_type == "crossvariable") {
     y_var <- "var_xv"
     y_label <- "Observed cross-brain effect size variance (var(Θ))"
-    y_limits <- c(-0.05, 0.5)
+    y_limits <- c(-0.05, 0.3)
   } else if (plot_type == "mv") { # note: all the same procedures here can also be used for the univariate case, just need to change the "mv" variable
     y_var <- "mv"
     y_label <- "Observed multivariate effect size (Θ)"
@@ -508,10 +513,11 @@ estimate_params <- function(df, df_meta, n_pts, main_title, fn, plot_type = "cro
   }
   
   # sort by sample size
-  df <- df[order(df$n, decreasing = FALSE), ]
+  df <- df[order(df$n/df$k, decreasing = FALSE), ]
 
-  # set nmax_plt to the maximum observed sample size in df (fallback to large default if unavailable)
-  nmax_plt <- max(df$n, na.rm = TRUE) + nmax_extra_padding
+  # set ndivk_max_plt to the maximum observed sample size in df (fallback to large default if unavailable)
+  ndivk_min_plt <- 10
+  ndivk_max_plt <- max(df$n, na.rm = TRUE) + ndivk_max_extra_padding
   
   for (add_meta in c(TRUE, FALSE)) {
     
@@ -528,7 +534,7 @@ estimate_params <- function(df, df_meta, n_pts, main_title, fn, plot_type = "cro
     fitlines_str <- '__fits'
     
     # interpolate predictions for all n (use plotted max n only)
-    n_seq <- data.frame(n = seq(0, nmax_plt, length.out = n_pts))
+    ndivk__seq <- seq(ndivk_min_plt, ndivk_max_plt, length.out = n_pts)
     
     # set up for each overarching category
     unique_cats <- unique(df$overarching_category)
@@ -555,14 +561,14 @@ estimate_params <- function(df, df_meta, n_pts, main_title, fn, plot_type = "cro
       if (use_var_xv__emp) {
         fit_all <- rma.mv(yi = var_xv__emp, 
                           V = vi_var_xv__emp,  # approximate variance
-                          mods = ~ I(1/n),
+                          mods = ~ I(k/n),
                           random = ~ 1 | overarching_category/dataset_nested,
                           data = df,
                           method = "REML")
       } else {
         fit_all <- rma.mv(yi = var_xv, 
                           V = vi_var_xv,  # approximate variance
-                          mods = ~ I(1/n),
+                          mods = ~ I(k/n),
                           random = ~ 1 | overarching_category/dataset_nested,
                           data = df,
                           method = "REML")
@@ -601,8 +607,8 @@ estimate_params <- function(df, df_meta, n_pts, main_title, fn, plot_type = "cro
         )
         
         # Create predicted values (constant line for mv)
-        preds <- rep(cat_intercept, length(n_seq$n))
-        preds_se <- rep(cat_intercept_se, length(n_seq$n))
+        preds <- rep(cat_intercept, length(ndivk__seq))
+        preds_se <- rep(cat_intercept_se, length(ndivk__seq))
         lwr <- preds - 1.96 * preds_se
         upr <- preds + 1.96 * preds_se
         predicted_y[[cat]] <- cbind(fit = preds, lwr = lwr, upr = upr)
@@ -622,9 +628,9 @@ estimate_params <- function(df, df_meta, n_pts, main_title, fn, plot_type = "cro
         )
         
         # Create predicted values with category-specific intercept
-        preds <- cat_intercept + slope * 1/n_seq$n
+        preds <- cat_intercept + slope * 1/ndivk__seq
         # Standard errors for predictions (more complex with random effects)
-        X_pred <- cbind(1, 1/n_seq$n)
+        X_pred <- cbind(1, 1/ndivk__seq)
         preds_se_fixed <- sqrt(diag(X_pred %*% fit_all$vb %*% t(X_pred)))
         preds_se <- sqrt(preds_se_fixed^2 + cat_intercept_se^2)
         lwr <- preds - 1.96 * preds_se
@@ -637,18 +643,18 @@ estimate_params <- function(df, df_meta, n_pts, main_title, fn, plot_type = "cro
     res <- do.call(rbind, res)
     
     # plot
-    df$x_plot <- df$n
-    df_meta$x_plot <- df_meta$n
-    x_label <- "sample size"
-    # use nmax_plt (prediction max) to set the upper x limit
-    x_limits <- c(0, nmax_plt)
+    df$x_plot <- df$n/df$k
+    # df_meta$x_plot <- df_meta$n
+    x_label <- "Log adjusted sample size (log(n/k))"
+    # use ndivk_max_plt (prediction max) to set the upper x limit
+    x_limits <- c(ndivk_min_plt, ndivk_max_plt)
     # OLD: for plot_with_inv_sqrt_n :
     # df$x_plot <- 1/sqrt(df$n)
     # df_meta$x_plot <- 1/sqrt(df_meta$n)
     # x_label <- "1 / sqrt(n)"
-    # # nmax_plt is always defined; compute smallest positive n step from nmax_plt and n_pts
+    # # ndivk_max_plt is always defined; compute smallest positive n step from ndivk_max_plt and n_pts
     # if (n_pts > 1) {
-    #   min_pos_n <- nmax_plt / (n_pts - 1)
+    #   min_pos_n <- ndivk_max_plt / (n_pts - 1)
     # } else {
     #   min_pos_n <- 1
     # }
@@ -673,19 +679,21 @@ estimate_params <- function(df, df_meta, n_pts, main_title, fn, plot_type = "cro
         panel.grid.major = element_blank(),
         panel.grid.minor = element_blank()
       ) +
-      scale_x_continuous(limits = x_limits, expand = c(0, 0)) +
+      scale_x_continuous(expand = c(0, 0), trans = "log") +
+      coord_cartesian(xlim = x_limits) +
       geom_hline(yintercept = 0, linetype = "dashed", color = "black", linewidth = 0.3)
     
     if (!is.null(y_limits)) {
-      p <- p + scale_y_continuous(limits = y_limits, expand = c(0, 0))
+      # p <- p + scale_y_continuous(limits = y_limits, expand = c(0, 0))
+      p <- p + coord_cartesian(ylim = y_limits)
     }
     
     for (cat in unique_cats) {
       pred_mat <- predicted_y[[cat]]
-      if (!is.null(pred_mat) && is.matrix(pred_mat) && all(c("fit","lwr","upr") %in% colnames(pred_mat)) && nrow(pred_mat) == length(n_seq$n)) {
+      if (!is.null(pred_mat) && is.matrix(pred_mat) && all(c("fit","lwr","upr") %in% colnames(pred_mat)) && nrow(pred_mat) == length(ndivk__seq)) {
         pred_df <- data.frame(
-          x_plot = n_seq$n,
-          # x_plot = 1/sqrt(n_seq$n), # OLD: for plot_with_inv_sqrt_n
+          x_plot = ndivk__seq,
+          # x_plot = 1/sqrt(ndivk__seq), # OLD: for plot_with_inv_sqrt_n
           fit = pred_mat[,"fit"],
           lwr = pred_mat[,"lwr"],
           upr = pred_mat[,"upr"],
@@ -700,6 +708,7 @@ estimate_params <- function(df, df_meta, n_pts, main_title, fn, plot_type = "cro
     
     if (add_meta && nrow(df_meta) > 0) {
       df_meta$label <- paste0(gsub("_reference_", " (", df_meta$name), ")\n", df_meta$n_studies, " ", ifelse(df_meta$n_studies == 1, "study", "studies"))
+      df_meta$x_plot <- df_meta$n/df_meta$k
       p <- p +
         geom_point(data = df_meta, aes_string(x = "x_plot", y = y_var, color = "overarching_category"), shape = 8, size = 2) +
         geom_text_repel(data = df_meta, aes_string(x = "x_plot", y = y_var, label = "label"), size = 2.2, segment.size = 0.3, force = 10, max.overlaps = Inf)
