@@ -171,14 +171,23 @@ res_mv <- estimate_params(summary_data, summary_data__meta,  n_pts, "Multivariat
 # Make density plots
 sigmas_master <- plot_densities(res, res_mv,  n_pts, fn_basedir, cats, cat_colors, save_plots)
 
-# Req'd n plots:
-# - original
-required_n_df <- make_required_n_df(n_pts, sigmas_master, do_mv = FALSE)
-plot_required_n_panel(required_n_df, do_mv = FALSE, cat_colors,fn_basedir)
+# Power plots
+# - mass univariate
+avg_power <- get_average_power(sigmas_master, do_mv = FALSE)
+plot_average_power(avg_power, do_mv = FALSE, cat_colors,fn_basedir)
 
 # - multivariate
-required_n_df_mv <- make_required_n_df(n_pts, sigmas_master, res_mv = res_mv, do_mv = TRUE)
-plot_required_n_panel(required_n_df_mv, do_mv = TRUE, cat_colors,fn_basedir)
+avg_power_mv <- get_average_power(sigmas_master, res_mv = res_mv, do_mv = TRUE)
+plot_average_power(avg_power_mv, do_mv = TRUE, cat_colors,fn_basedir)
+
+# Req'd n plots:
+# # - mass univariate
+# required_n_df <- make_required_n_df(n_pts, sigmas_master, do_mv = FALSE)
+# plot_required_n_panel(required_n_df, do_mv = FALSE, cat_colors,fn_basedir)
+# 
+# # - multivariate
+# required_n_df_mv <- make_required_n_df(n_pts, sigmas_master, res_mv = res_mv, do_mv = TRUE)
+# plot_required_n_panel(required_n_df_mv, do_mv = TRUE, cat_colors,fn_basedir)
 
 
 
@@ -931,9 +940,122 @@ plot_densities <- function(res, res_mv,  n_pts, fn_basedir, cats, cat_colors, sa
   return(sigmas_master)
 }
 
-##### REQUIRED N PLOTS #####
+##### POWER PLOTS #####
 
+##### UNDER CONSTRUCTION #####
+
+# make average power vs. sample size plots
+
+get_average_power <- function(sigmas_master, res_mv = NULL, do_mv = FALSE) {
+  
+  if (do_mv) {
+    mv_suffix <- '_mv'
+    xlim <- c(0, 6)
+  } else {
+    mv_suffix <- ''
+    xlim <- c(-0.8, 0.8)
+  }
+  
+  n_vector <- c(0, 25, 50, 100, 500, 1000, 5000, 50000, 300000, Inf)
+  avg_power <- data.frame()
+  
+  # get cats from res
+  cats <- rownames(sigmas_master)
+  for (cat in cats) {
+    
+    # run power
+    
+    # set up temporary data frame for this cat
+    avg_power_tmp <- data.frame(n = n_vector, overarching_category = cat)
+    
+    # set test type
+    test_type <- if (grepl("task", cat)) "one.sample" else "two.sample"
+    
+    if (do_mv) {
+      avg_power_tmp$uncorrected <- sapply(n_vector, function(n) pwr.t.test(n = n, d = res_mv[cat, "est"], sig.level = 0.05, type = test_type, alternative = "two.sided")$power)
+      # TODO: for two-sample, n will be single group size - account for this
+      avg_power_tmp$bonferroni <- NA
+      avg_power_tmp$fdr <- NA
+    } else {
+      
+      sigmas <- sigmas_master[cat, ]
+      this_sigma <- as.numeric(sigmas["est"])
+
+      # get average power at each n
+      k <- 35778 # assuming Shen atlas dimensionality, although much larger for voxelwise # TODO: decide whether to adjust voxel
+      alpha <- 0.05/2 # TODO: is this simple adjustment enough to make equivalent to two-sided?
+      
+      avg_power_tmp$uncorrected <- sapply(n_vector, function(n) F1(alpha, 0, this_sigma*sqrt(n)))
+      avg_power_tmp$bonferroni <- sapply(n_vector, function(n) F1(alpha/k, 0, this_sigma*sqrt(n)))
+      avg_power_tmp$fdr <- sapply(n_vector, function(n) BHpower(1, 0, alpha, this_sigma*sqrt(n)))
+      # TODO: test (especially using this sigma_delta for uncorr/bonf, not shown by Tom)
+      # TODO: update for 2-sample
+    }
+    
+    # make long, moving correction type to a new column
+    avg_power_tmp <- avg_power_tmp %>%
+      pivot_longer(
+        cols = c(uncorrected, bonferroni, fdr),
+        names_to = "correction_type",
+        values_to = "avg_power"
+      )
+    
+    avg_power <- rbind(avg_power, avg_power_tmp)
+  }
+
+  return(avg_power)
+}
+
+
+# plot avg power
+
+plot_average_power <- function(df, do_mv = FALSE, cat_colors, fn_basedir) {
+  
+  do_horizontal_panels <- TRUE
+  
+  title <- if (do_mv) "Average power by Category (Multivariate)" else "Average power by Category"
+  filename <- if (do_mv) 'power_panels_mv.pdf' else 'power_panels.pdf'
+  
+  if (do_horizontal_panels) {
+    nrow <- 1
+    width = 4 * length(cat_colors)
+    height = 4
+  } else {
+    nrow <- length(cat_colors)
+    width = 5
+    height = 4 * length(cat_colors)
+  }
+  n_vector <- c(0, 25, 50, 100, 500, 1000, 5000, 50000, 300000, Inf)
+  p <- ggplot(df, aes(x = n, y = avg_power, group = interaction(overarching_category,correction_type), color = overarching_category, linetype = correction_type)) +
+    geom_line(size = 1) +
+    scale_x_continuous(breaks = c(0, 25, 50, 100, 500, 1000, 5000, 50000, 300000, Inf), labels = c("0", "25", "50", "100", "500", "1000", "5000", "50000", "300000", "∞")) +
+    # scale_x_continuous(trans = "sqrt") +
+    scale_color_manual(values = cat_colors) +
+    facet_wrap(~overarching_category, nrow = nrow, scales = "free_y") +
+    labs(title = title, x = "Sqrt Sample Size", y = "Average Power", color = "Category", linetype = "Correction Type") +
+    theme_bw() +
+    theme(
+      axis.text.x = element_text(angle = 45, hjust = 1),
+      legend.position = c(0.02, 0.98),
+      legend.justification = c("left", "top"),
+      legend.background = element_rect(fill = "white", color = "grey80"),
+      legend.key.size = unit(0.7, "lines")
+    )
+  
+  if (save_plots) {
+    ggsave(paste0(fn_basedir, filename), p, width = width, height = height)
+  } else {
+    print(p)
+  }
+}
+
+
+
+
+##### TODO: CHECK IF NEEDED AND REMOVE #####
+##### REQUIRED N PLOTS #####
 # get req'd n and bin
+
 make_required_n_df <- function(n_pts, sigmas_master, res_mv = NULL, do_mv = FALSE) {
   
   if (do_mv) {
@@ -987,9 +1109,11 @@ make_required_n_df <- function(n_pts, sigmas_master, res_mv = NULL, do_mv = FALS
     } else {
       sigmas <- sigmas_master[cat, ]
       y <- dnorm(d, mean = 0, sd = as.numeric(sigmas["est"]))
-
+      
+      # V1
       n_detect <- sapply(d, function(dd) safe_pwr(dd, test_type))
       bin_indices <- cut(n_detect, breaks = n_bins, include.lowest = TRUE, labels = bin_labels)
+      
     }
     
     binned_sums <- tapply(y, bin_indices, sum, na.rm = TRUE)
