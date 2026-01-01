@@ -35,11 +35,13 @@ library(pwr) # for sample size calculations
 library(tidyr)
 library(RColorBrewer)
 library(metafor)
+library(patchwork)
   
 # set add'l params
 n_large_threshold <- 900
 cats <- c("psychological", "physical", "task activation", "task connectivity")
 cat_colors <- RColorBrewer::brewer.pal(length(cats), "Set1")
+names(cat_colors) <- cats
 n_pts <- 10000
 
 # make output directory if it doesn't exist
@@ -873,35 +875,33 @@ plot_densities <- function(res, res_mv,  n_pts, fn_basedir, cats, cat_colors, sa
   }
   density_df$fill <- density_df$sigma_type=="est"
   
-  # Separate panels per category, colored by overarching category, legend inset
-  p_density_panel <- ggplot() +
-    # ribbon only for "est" rows
-    geom_ribbon(
-      data = subset(density_df, sigma_type == "est"),
-      aes(x = d, ymin = 0, ymax = density, fill = overarching_category),
-      alpha = 0.35,
-      colour = NA,
-      inherit.aes = FALSE,
-      show.legend = FALSE   # hide separate fill legend if you prefer
-    ) +
-    # lines for all rows (color + linetype)
-    geom_line(
-      data = density_df,
-      aes(x = d, y = density, color = overarching_category, linetype = sigma_type),
-      size = 0.9
-    ) +
-    facet_wrap(~category, nrow = nrow, scales = "free_y") +
-    scale_color_manual(values = cat_colors, name = "Category") +
-    scale_fill_manual(values = cat_colors, guide = "none") +  # keep colors consistent, hide fill legend
-    labs(title = "Density Curves by Category", x = "Cohen's d", y = "Density", color = "Category", linetype = "Sigma Type") +
-    theme_bw() +
-    coord_cartesian(xlim = xlim) +
-    theme(
-      legend.position = c(0.02, 0.98),
-      legend.justification = c("left", "top"),
-      legend.background = element_rect(fill = "white", color = "grey80"),
-      legend.key.size = unit(0.7, "lines")
-    )
+  # Get unique categories and create individual plots
+  unique_cats <- unique(density_df$category)
+  plot_list <- list()
+  
+  for (i in seq_along(unique_cats)) {
+    cat <- unique_cats[i]
+    p <- ggplot(density_df %>% filter(category == cat), aes(x = d, y = density, color = overarching_category, linetype = sigma_type)) +
+      geom_ribbon(data = subset(density_df, category == cat & sigma_type == "est"),
+                  aes(ymin = 0, ymax = density, fill = overarching_category), 
+                  alpha = 0.35, colour = NA, show.legend = FALSE) +
+      geom_line(size = 0.9) +
+      scale_color_manual(values = cat_colors) +
+      scale_fill_manual(values = cat_colors, guide = "none") +
+      scale_y_continuous(limits = c(0, max(density_df %>% filter(category == cat, sigma_type == "est") %>% pull(density), na.rm = TRUE))) +
+      labs(title = cat, x = "Cohen's d", y = "Density") +
+      theme_bw() +
+      theme(legend.position = "none")
+    
+    plot_list[[cat]] <- p
+  }
+  
+  # Combine plots with patchwork
+  p_density_panel <- Reduce(`+`, plot_list) +
+    plot_layout(nrow = nrow, guides = 'collect') &
+    theme(legend.position = c(0.02, 0.98), 
+          legend.justification = c("left", "top"),
+          legend.background = element_rect(fill = "white", color = "grey80"))
   
   # p_density_panel <- ggplot(density_df, aes(x = d, y = density, color = overarching_category, fill = overarching_category, linetype = sigma_type)) +
   #   geom_ribbon(aes(ymin = 0, ymax = density,
