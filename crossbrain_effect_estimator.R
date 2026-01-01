@@ -164,9 +164,9 @@ total_n <- sum(all_ns, na.rm = TRUE)
 plot_extra <- FALSE # TODO - tmp
 
 # get point est and conservative est
-res <- estimate_params(summary_data, summary_data__meta,  n_pts, "Point Estimates", paste0(fn_basedir,'point'))
+res <- estimate_params(summary_data, summary_data__meta,  n_pts, "Parameter Estimation Plot: Cross-Brain Effects", paste0(fn_basedir,'point'))
 # get multivariate effect sizes
-res_mv <- estimate_params(summary_data, summary_data__meta,  n_pts, "Multivariate Effect Sizes", paste0(fn_basedir,'mv_est'), plot_type = "mv")
+res_mv <- estimate_params(summary_data, summary_data__meta,  n_pts, "Parameter Estimation Plot: Multivariate Effects", paste0(fn_basedir,'mv_est'), plot_type = "mv")
 
 # Make density plots
 sigmas_master <- plot_densities(res, res_mv,  n_pts, fn_basedir, cats, cat_colors, save_plots)
@@ -511,11 +511,11 @@ estimate_params <- function(df, df_meta, n_pts, main_title, fn, plot_type = "cro
   # Determine y variable and settings based on plot_type
   if (plot_type == "crossvariable") {
     y_var <- "var_xv"
-    y_label <- "Observed cross-brain effect size variance (var(Θ))"
+    y_label <- expression("Observed cross-brain effect variance (var("*hat(theta)*"))")
     y_limits <- c(-0.05, 0.3)
   } else if (plot_type == "mv") { # note: all the same procedures here can also be used for the univariate case, just need to change the "mv" variable
     y_var <- "mv"
-    y_label <- "Observed multivariate effect size (Θ)"
+    y_label <- expression("Observed multivariate effect ("*hat(theta)*")")
     y_limits <- NULL  # Let ggplot auto-scale
   } else {
     stop("plot_type must be either 'crossvariable' or 'mv'")
@@ -681,7 +681,7 @@ estimate_params <- function(df, df_meta, n_pts, main_title, fn, plot_type = "cro
            color = "Category") +
       theme_bw() +
       theme(
-        plot.title = element_text(hjust = 0.5),
+        plot.title = element_text(hjust = 0.5,face = "bold"),
         legend.position = c(0.98, 0.98),
         legend.justification = c("right", "top"),
         legend.key.size = unit(0.7, "lines"),
