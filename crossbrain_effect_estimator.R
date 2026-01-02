@@ -183,13 +183,13 @@ avg_power_mv <- get_average_power(sigmas_master, res_mv = res_mv, do_mv = TRUE)
 plot_average_power(avg_power_mv, do_mv = TRUE, cat_colors,fn_basedir)
 
 # Req'd n plots:
-# # - mass univariate
-# required_n_df <- make_required_n_df(n_pts, sigmas_master, do_mv = FALSE)
-# plot_required_n_panel(required_n_df, do_mv = FALSE, cat_colors,fn_basedir)
-# 
-# # - multivariate
-# required_n_df_mv <- make_required_n_df(n_pts, sigmas_master, res_mv = res_mv, do_mv = TRUE)
-# plot_required_n_panel(required_n_df_mv, do_mv = TRUE, cat_colors,fn_basedir)
+# - mass univariate
+required_n_df <- make_required_n_df(n_pts, sigmas_master, do_mv = FALSE)
+plot_required_n_panel(required_n_df, do_mv = FALSE, cat_colors,fn_basedir)
+
+# - multivariate
+required_n_df_mv <- make_required_n_df(n_pts, sigmas_master, res_mv = res_mv, do_mv = TRUE)
+plot_required_n_panel(required_n_df_mv, do_mv = TRUE, cat_colors,fn_basedir)
 
 
 
@@ -1021,7 +1021,7 @@ plot_average_power <- function(df, do_mv = FALSE, cat_colors, fn_basedir) {
   
   do_horizontal_panels <- TRUE
   
-  title <- if (do_mv) "Average power by Category (Multivariate)" else "Average power by Category"
+  title <- if (do_mv) "Average Power by Category (Multivariate)" else "Average Power by Category"
   filename <- if (do_mv) 'power_panels_mv.pdf' else 'power_panels.pdf'
   
   if (do_horizontal_panels) {
