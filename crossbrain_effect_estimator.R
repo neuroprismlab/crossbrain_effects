@@ -778,11 +778,15 @@ plot_densities <- function(res, res_mv,  n_pts, fn_basedir, cats, cat_colors, sa
     if (do_mv) {
       
       for (name in names(res_mv[cat, ])) {
+        
         mu <- res_mv[cat, name]
+        if (!is.na(mu) && mu < 0) {
+          mu <- 0
+        }
         
         y <- rep(0, length(d))
         closest_idx <- which.min(abs(d - mu))
-        y[closest_idx] <- 10
+        y[closest_idx] <- 1
         
         density_list[[length(density_list)+1]] <- data.frame(
           d = d,
@@ -806,28 +810,30 @@ plot_densities <- function(res, res_mv,  n_pts, fn_basedir, cats, cat_colors, sa
         
         s <- sigmas[name]
         
-        if (s >= 0) {
+        if (s > 0) {
           y <- dnorm(d, mean = 0, sd = s)
-          density_list[[length(density_list)+1]] <- data.frame(
-            d = d,
-            density = y,
-            category = cat,
-            sigma_type = name,
-            overarching_category = cat
-          )
         } else {
-          # point mass at 0
+          # point mass at 0 with exponential taper toward the midpoint so it plots nicely
+          # note that these are arbitrary values set so point mass shows up for plots with ymax=~3 - ymax=~8
           y <- rep(0, length(d))
-          # closest_idx <- which.min(abs(d))
-          y[ceiling(length(d)/2)] <- 1
-          density_list[[length(density_list)+1]] <- data.frame(
-            d = d,
-            density = y,
-            category = cat,
-            sigma_type = name,
-            overarching_category = cat
-          )
+          midpt <- ceiling(length(d)/2)
+          max_density <- 30
+          n_taper <- 70
+          weights <- exp(seq(log(0.1), log(1), length.out = n_taper))
+          y[(midpt - n_taper/2 + 1):(midpt + n_taper/2)] <- max_density * weights
+          # weights <- exp(seq(log(0.1), log(1), length.out = n_taper))
+          # y[(midpt - n_taper + 1):midpt] <- max_density * weights
+          # y[(midpt + 1):(midpt + n_taper)] <- max_density * rev(weights)
         }
+        
+        density_list[[length(density_list)+1]] <- data.frame(
+          d = d,
+          density = y,
+          category = cat,
+          sigma_type = name,
+          overarching_category = cat
+        )
+        
       }
     }
   }
