@@ -802,10 +802,10 @@ plot_densities <- function(res, res_mv,  n_pts, fn_basedir, cats, cat_colors, sa
       vars <- pmax(vars, 0) # no negative variances
       sigmas <- sqrt(vars)
       # print(sigmas)
-      names(sigmas) <- c('lb','est','ub')
+      names(sigmas) <- c('lwr','est','upr')
       sigmas_master <- rbind(sigmas_master, sigmas)
       
-      # If not mv, make y as dnorm for each sigma (lb, est, ub)
+      # If not mv, make y as dnorm for each sigma (lwr, est, upr)
       for (name in names(sigmas)) {
         
         s <- sigmas[name]
@@ -891,8 +891,10 @@ plot_densities <- function(res, res_mv,  n_pts, fn_basedir, cats, cat_colors, sa
       geom_ribbon(data = subset(density_df, category == cat & sigma_type == "est"),
                   aes(ymin = 0, ymax = density, fill = overarching_category), 
                   alpha = 0.35, colour = NA, show.legend = FALSE) +
-      geom_line(size = 0.9) +
+      geom_line(linewidth = 0.8, lineend = "butt") +
       scale_color_manual(values = cat_colors) +
+      # use named linetypes so dash patterns remain visible at thicker linewidth
+      scale_linetype_manual(values = c(est = "solid", lwr = "dashed", upr = "dotdash")) +
       scale_fill_manual(values = cat_colors, guide = "none") +
       scale_y_continuous(limits = c(0, max(density_df %>% filter(category == cat, sigma_type == "est") %>% pull(density), na.rm = TRUE))) +
       labs(title = cat, x = "Cohen's d", y = "Density") +
