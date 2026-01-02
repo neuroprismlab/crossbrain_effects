@@ -758,7 +758,7 @@ plot_densities <- function(res, res_mv,  n_pts, fn_basedir, cats, cat_colors, sa
   for (do_mv in c(FALSE, TRUE)) {
     if (do_mv) {
       mv_suffix <- '_mv'
-      xlim <- c(0, 3.5)
+      xlim <- c(0, 5)
     } else {
       mv_suffix <- ''
       xlim <- c(-0.8, 0.8)
