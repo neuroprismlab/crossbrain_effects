@@ -251,14 +251,18 @@ r_sq_se <- function(r_sq, n) {
 # delta: noncentrality parameter = d * sqrt(n)
 # sigma_delta: standard deviation of noncentrality parameter across tests
 # alphaFDR : target FDR level (e.g. 0.05)
+# pp is p-value threshold for rejection of test (test-specific Type I error)
+#   uncorrected: pp=alpha
+#   Bonferroni: pp=alpha/k
+#   FDR: pp=BHthresh
 
 # CDF of non-null p-values under H1
 # Usage:
 #   For FDR, BHpower(pi0, d*sqrt(n), alphaFDR)
 #   For uncorrected, power=F1(alphaFDR,d*sqrt(n))
 #   For Bonferroni, power=F1(alphaFDR/k,d*sqrt(n))
-F1 <- function(u, delta, sigma_delta=0)  {
-  1 - pnorm((qnorm(1 - u) - delta) / sqrt(1 + sigma_delta^2))
+F1 <- function(pp, delta, sigma_delta=0)  {
+  1 - pnorm((qnorm(1 - pp) - delta) / sqrt(1 + sigma_delta^2))
 }
 
 # BH-FDR threshold anticipated by the process approach to FDR
