@@ -968,6 +968,10 @@ get_average_power <- function(sigmas_master, res_mv = NULL, do_mv = FALSE) {
     xlim <- c(-0.8, 0.8)
   }
   
+  alpha <- 0.05/2 # TODO: is this simple adjustment enough to make equivalent to two-sided?
+  alpha_mv <- 0.05
+  target_power <- 0.8
+  
   n_vector <- c(0, 25, 50, 100, 500, 1000, 5000, 50000, 300000, Inf)
   avg_power <- data.frame()
   
@@ -984,7 +988,7 @@ get_average_power <- function(sigmas_master, res_mv = NULL, do_mv = FALSE) {
     test_type <- if (grepl("task", cat)) "one.sample" else "two.sample"
     
     if (do_mv) {
-      avg_power_tmp$uncorrected <- sapply(n_vector, function(n) pwr.t.test(n = n, d = res_mv[cat, "est"], sig.level = 0.05, type = test_type, alternative = "two.sided")$power)
+      avg_power_tmp$uncorrected <- sapply(n_vector, function(n) pwr.t.test(n = n, d = res_mv[cat, "est"], sig.level = alpha_mv, type = test_type, alternative = "two.sided")$power)
       # TODO: for two-sample, n will be single group size - account for this
       avg_power_tmp$bonferroni <- NA
       avg_power_tmp$fdr <- NA
@@ -995,7 +999,6 @@ get_average_power <- function(sigmas_master, res_mv = NULL, do_mv = FALSE) {
 
       # get average power at each n
       k <- 35778 # assuming Shen atlas dimensionality, although much larger for voxelwise # TODO: decide whether to adjust voxel
-      alpha <- 0.05/2 # TODO: is this simple adjustment enough to make equivalent to two-sided?
       
       avg_power_tmp$uncorrected <- sapply(n_vector, function(n) F1(alpha, 0, this_sigma*sqrt(n)))
       avg_power_tmp$bonferroni <- sapply(n_vector, function(n) F1(alpha/k, 0, this_sigma*sqrt(n)))
