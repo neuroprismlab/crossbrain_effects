@@ -299,6 +299,24 @@ BHpower <- function(pi0, alphaFDR, delta, sigma_delta=0) {
   F1(pp, delta, sigma_delta)
 }
 
+# additional power functions - Steph
+
+# additional definitions
+# beta: Type II error (1-power)
+# n: sample size
+
+# Proportion of tests with above "adequate" (1-beta) power at significance level alpha
+proportion_detectable <- function(pp, beta, n, delta, sigma_delta=0)  {
+  k <- qnorm(1 - pp) - qnorm(beta)
+  1 - pnorm((k - delta) * sqrt(n) / sigma_delta)
+}
+
+BH_proportion_detectable <- function(pi0, alphaFDR, beta, n, delta, sigma_delta=0) {
+  pp <- BHthresh(pi0, alphaFDR, delta, sigma_delta)
+  if (pp == 0) return(0)
+  proportion_detectable(pp, b, n, delta, sigma_delta)
+}
+
 
 # ------------- ORGANIZING, FITTING, AND PLOTTING -------------------------
 
@@ -983,6 +1001,7 @@ get_average_power <- function(sigmas_master, res_mv = NULL, do_mv = FALSE) {
     
     # set up temporary data frame for this cat
     avg_power_tmp <- data.frame(n = n_vector, overarching_category = cat)
+    proportion_detectable_tmp <- data.frame(n = n_vector, overarching_category = cat)
     
     # set test type
     test_type <- if (grepl("task", cat)) "one.sample" else "two.sample"
@@ -992,6 +1011,11 @@ get_average_power <- function(sigmas_master, res_mv = NULL, do_mv = FALSE) {
       # TODO: for two-sample, n will be single group size - account for this
       avg_power_tmp$bonferroni <- NA
       avg_power_tmp$fdr <- NA
+      
+      proportion_detectable_tmp$uncorrected <- avg_power_tmp$uncorrected > target_power
+      proportion_detectable_tmp$bonferroni <- NA
+      proportion_detectable_tmp$fdr <- NA
+      
     } else {
       
       sigmas <- sigmas_master[cat, ]
@@ -1005,6 +1029,10 @@ get_average_power <- function(sigmas_master, res_mv = NULL, do_mv = FALSE) {
       avg_power_tmp$fdr <- sapply(n_vector, function(n) BHpower(1, alpha, 0, this_sigma*sqrt(n)))
       # TODO: test (especially using this sigma_delta for uncorr/bonf, not shown by Tom)
       # TODO: update for 2-sample
+      
+      proportion_detectable_tmp$uncorrected <- sapply(n_vector, function(n) proportion_detectable(alpha, 1-target_power, n, 0, this_sigma*sqrt(n)))
+      proportion_detectable_tmp$bonferroni <- sapply(n_vector, function(n) proportion_detectable(alpha/k, 1-target_power, n, 0, this_sigma*sqrt(n)))
+      proportion_detectable_tmp$fdr <- sapply(n_vector, function(n) BH_proportion_detectable(1, alpha, 1-target_power, n, 0, this_sigma*sqrt(n)))
     }
     
     # make long, moving correction type to a new column
