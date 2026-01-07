@@ -1011,6 +1011,8 @@ get_average_power <- function(sigmas_master, res_mv = NULL, do_mv = FALSE) {
     avg_power <- rbind(avg_power, avg_power_tmp)
   }
 
+  # Preserve facet order to match cats vector
+  avg_power$overarching_category <- factor(avg_power$overarching_category, levels = cats)
   return(avg_power)
 }
 
@@ -1136,6 +1138,8 @@ make_required_n_df <- function(n_pts, sigmas_master, res_mv = NULL, do_mv = FALS
   }
   
   required_n_df$bin <- factor(required_n_df$bin, levels = bin_labels, ordered = TRUE)
+  # Preserve facet order to match cats vector
+  required_n_df$overarching_category <- factor(required_n_df$overarching_category, levels = cats)
   return(required_n_df)
 }
 
