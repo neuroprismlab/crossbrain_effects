@@ -258,7 +258,7 @@ r_sq_se <- function(r_sq, n) {
 
 # CDF of non-null p-values under H1
 # Usage:
-#   For FDR, BHpower(pi0, d*sqrt(n), alphaFDR)
+#   For FDR, BHpower(pi0, alphaFDR, d*sqrt(n))
 #   For uncorrected, power=F1(alphaFDR,d*sqrt(n))
 #   For Bonferroni, power=F1(alphaFDR/k,d*sqrt(n))
 F1 <- function(pp, delta, sigma_delta=0)  {
@@ -266,7 +266,7 @@ F1 <- function(pp, delta, sigma_delta=0)  {
 }
 
 # BH-FDR threshold anticipated by the process approach to FDR
-BHthresh <- function(pi0, delta, alphaFDR,sigma_delta=0) {
+BHthresh <- function(pi0, alphaFDR, delta, sigma_delta=0) {
   pi1 <- 1 - pi0
   
   # FDR Power Implicit Equation, solved for pp (p')
@@ -293,8 +293,8 @@ BHthresh <- function(pi0, delta, alphaFDR,sigma_delta=0) {
 }
 
 # Average BH power (per non-null) for given pi0, delta, alphaFDR
-BHpower <- function(pi0, delta, alphaFDR,sigma_delta=0) {
-  pp <- BHthresh(pi0, delta, alphaFDR,sigma_delta)
+BHpower <- function(pi0, alphaFDR, delta, sigma_delta=0) {
+  pp <- BHthresh(pi0, alphaFDR, delta, sigma_delta)
   if (pp == 0) return(0)
   F1(pp, delta, sigma_delta)
 }
@@ -1002,7 +1002,7 @@ get_average_power <- function(sigmas_master, res_mv = NULL, do_mv = FALSE) {
       
       avg_power_tmp$uncorrected <- sapply(n_vector, function(n) F1(alpha, 0, this_sigma*sqrt(n)))
       avg_power_tmp$bonferroni <- sapply(n_vector, function(n) F1(alpha/k, 0, this_sigma*sqrt(n)))
-      avg_power_tmp$fdr <- sapply(n_vector, function(n) BHpower(1, 0, alpha, this_sigma*sqrt(n)))
+      avg_power_tmp$fdr <- sapply(n_vector, function(n) BHpower(1, alpha, 0, this_sigma*sqrt(n)))
       # TODO: test (especially using this sigma_delta for uncorr/bonf, not shown by Tom)
       # TODO: update for 2-sample
     }
