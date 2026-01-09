@@ -1076,6 +1076,7 @@ get_average_power <- function(sigmas_master, res_mv = NULL, do_mv = FALSE) {
 
 plot_average_power <- function(df, do_mv = FALSE, cat_colors, fn_basedir) {
   
+  print("Making power plots")
   do_horizontal_panels <- TRUE
   
   title <- if (do_mv) "Average Power by Category (Multivariate)" else "Average Power by Category"
