@@ -1021,7 +1021,7 @@ get_average_power <- function(sigmas_master, res_mv = NULL, do_mv = FALSE) {
       avg_power_tmp$bonferroni <- NA
       avg_power_tmp$fdr <- NA
       
-      proportion_detectable_tmp$uncorrected <- avg_power_tmp$uncorrected > target_power
+      proportion_detectable_tmp$uncorrected <- as.numeric(avg_power_tmp$uncorrected > target_power)
       proportion_detectable_tmp$bonferroni <- NA
       proportion_detectable_tmp$fdr <- NA
       
