@@ -322,7 +322,7 @@ proportion_detectable <- function(pp, beta, n, delta, sigma_delta=0)  {
 BH_proportion_detectable <- function(pi0, alphaFDR, beta, n, delta, sigma_delta=0) {
   pp <- BHthresh(pi0, alphaFDR, delta, sigma_delta)
   if (pp == 0) return(0)
-  proportion_detectable(pp, b, n, delta, sigma_delta)
+  proportion_detectable(pp, beta, n, delta, sigma_delta)
 }
 
 
