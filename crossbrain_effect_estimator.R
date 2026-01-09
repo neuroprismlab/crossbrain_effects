@@ -493,7 +493,7 @@ get_study_summaries <- function(data, study, estimate, combo_name) {
   
   # set up final data frame
   
-  df <- data.frame(name = names(data), mean = d_mean, var_xv = d_var_xv, var_xv__emp = d_var_xv__emp, mean_cons = d_cons_mean, var_xv_cons = d_cons_var_xv, var_xv__emp_cons = d_var_xv__emp_cons, n = d_n, category = as.factor(study$category), dataset = I(study$dataset), ref = study$ref, orig_stat_type = study$orig_stat_type, mv = d_mv, mv_lb = d_mv_lb, mv_ub = d_mv_ub, vi_var_xv = vi, vi_var_xv__emp = vi_var_xv__emp, vi_mv = vi_mv, k = d_k, shapiro = shapiro, stringsAsFactors = FALSE)
+  df <- data.frame(name = names(data), mean = d_mean, var_xv = d_var_xv, var_xv__emp = d_var_xv__emp, mean_cons = d_cons_mean, var_xv_cons = d_cons_var_xv, var_xv__emp_cons = d_var_xv__emp_cons, n = d_n, category = as.factor(study$category), dataset = I(study$dataset), ref = study$ref, orig_stat_type = unlist(study$orig_stat_type), mv = d_mv, mv_lb = d_mv_lb, mv_ub = d_mv_ub, vi_var_xv = vi, vi_var_xv__emp = vi_var_xv__emp, vi_mv = vi_mv, k = d_k, shapiro = shapiro, stringsAsFactors = FALSE)
   
   # for meta: if exists, add n_studies
   if ("n_studies" %in% colnames(study)) {
