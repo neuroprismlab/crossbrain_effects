@@ -1090,11 +1090,13 @@ plot_average_power <- function(df, do_mv = FALSE, cat_colors, fn_basedir) {
     width = 5
     height = 4 * length(cat_colors)
   }
-  n_vector <- c(0, 25, 50, 100, 500, 1000, 5000, 50000, 300000, Inf)
-  p <- ggplot(df, aes(x = n, y = avg_power, group = interaction(overarching_category,correction_type), color = overarching_category, linetype = correction_type)) +
+  
+  n_str <- as.character(sort(unique(df$n)))
+  n_str[length(n_str)] <- "∞"
+  
+  p <- ggplot(df, aes(x = factor(n), y = avg_power, group = interaction(overarching_category,correction_type), color = overarching_category, linetype = correction_type)) +
     geom_line(size = 1) +
-    scale_x_continuous(breaks = c(0, 25, 50, 100, 500, 1000, 5000, 50000, 300000, Inf), labels = c("0", "25", "50", "100", "500", "1000", "5000", "50000", "300000", "∞")) +
-    # scale_x_continuous(trans = "sqrt") +
+    scale_x_discrete(labels = n_str) +
     scale_color_manual(values = cat_colors) +
     facet_wrap(~overarching_category, nrow = nrow, scales = "free_y") +
     labs(title = title, x = "Sqrt Sample Size", y = "Average Power", color = "Category", linetype = "Correction Type") +
@@ -1131,10 +1133,13 @@ plot_proportion_detectable <- function(df, do_mv = FALSE, cat_colors, fn_basedir
     width = 5
     height = 4 * length(cat_colors)
   }
-  n_vector <- c(0, 25, 50, 100, 500, 1000, 5000, 50000, 300000, Inf)
-  p <- ggplot(df, aes(x = n, y = proportion_detectable, group = interaction(overarching_category,correction_type), color = overarching_category, linetype = correction_type)) +
+  
+  n_str <- as.character(sort(unique(df$n)))
+  n_str[length(n_str)] <- "∞"
+  
+  p <- ggplot(df, aes(x = factor(n), y = proportion_detectable, group = interaction(overarching_category,correction_type), color = overarching_category, linetype = correction_type)) +
     geom_line(size = 1) +
-    scale_x_continuous(breaks = c(0, 25, 50, 100, 500, 1000, 5000, 50000, 300000, Inf), labels = c("0", "25", "50", "100", "500", "1000", "5000", "50000", "300000", "∞")) +
+    scale_x_discrete(labels = n_str) +
     scale_color_manual(values = cat_colors) +
     facet_wrap(~overarching_category, nrow = nrow, scales = "free_y") +
     labs(title = title, x = "Sample Size", y = "Proportion Detectable", color = "Category", linetype = "Correction Type") +
