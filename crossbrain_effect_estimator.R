@@ -180,20 +180,24 @@ avg_power <- results_uv$avg_power
 proportion_detectable <- results_uv$proportion_detectable
 
 plot_average_power(avg_power, do_mv = FALSE, cat_colors,fn_basedir)
+plot_proportion_detectable(proportion_detectable, do_mv = FALSE, cat_colors,fn_basedir)
 
 # - multivariate
 results_uv <- get_average_power(sigmas_master, res_mv = res_mv, do_mv = TRUE)
 avg_power_mv <- results_uv$avg_power
 proportion_detectable_mv <- results_uv$proportion_detectable
 
-# Req'd n plots:
-# - mass univariate
-required_n_df <- make_required_n_df(n_pts, sigmas_master, do_mv = FALSE)
-plot_required_n_panel(required_n_df, do_mv = FALSE, cat_colors,fn_basedir)
+plot_average_power(avg_power_mv, do_mv = TRUE, cat_colors,fn_basedir)
+plot_proportion_detectable(proportion_detectable_mv, do_mv = TRUE, cat_colors,fn_basedir)
 
-# - multivariate
-required_n_df_mv <- make_required_n_df(n_pts, sigmas_master, res_mv = res_mv, do_mv = TRUE)
-plot_required_n_panel(required_n_df_mv, do_mv = TRUE, cat_colors,fn_basedir)
+# # Req'd n plots:
+# # - mass univariate
+# required_n_df <- make_required_n_df(n_pts, sigmas_master, do_mv = FALSE)
+# plot_required_n_panel(required_n_df, do_mv = FALSE, cat_colors,fn_basedir)
+# 
+# # - multivariate
+# required_n_df_mv <- make_required_n_df(n_pts, sigmas_master, res_mv = res_mv, do_mv = TRUE)
+# plot_required_n_panel(required_n_df_mv, do_mv = TRUE, cat_colors,fn_basedir)
 
 
 
@@ -1110,7 +1114,45 @@ plot_average_power <- function(df, do_mv = FALSE, cat_colors, fn_basedir) {
   }
 }
 
-
+# plot proportion detectable
+plot_proportion_detectable <- function(df, do_mv = FALSE, cat_colors, fn_basedir) {
+  
+  do_horizontal_panels <- TRUE
+  
+  title <- if (do_mv) "Proportion Detectable by Category (Multivariate)" else "Proportion Detectable by Category"
+  filename <- if (do_mv) 'proportion_detect_mv.pdf' else 'proportion_detect.pdf'
+  
+  if (do_horizontal_panels) {
+    nrow <- 1
+    width = 4 * length(cat_colors)
+    height = 4
+  } else {
+    nrow <- length(cat_colors)
+    width = 5
+    height = 4 * length(cat_colors)
+  }
+  n_vector <- c(0, 25, 50, 100, 500, 1000, 5000, 50000, 300000, Inf)
+  p <- ggplot(df, aes(x = n, y = proportion_detectable, group = interaction(overarching_category,correction_type), color = overarching_category, linetype = correction_type)) +
+    geom_line(size = 1) +
+    scale_x_continuous(breaks = c(0, 25, 50, 100, 500, 1000, 5000, 50000, 300000, Inf), labels = c("0", "25", "50", "100", "500", "1000", "5000", "50000", "300000", "∞")) +
+    scale_color_manual(values = cat_colors) +
+    facet_wrap(~overarching_category, nrow = nrow, scales = "free_y") +
+    labs(title = title, x = "Sample Size", y = "Proportion Detectable", color = "Category", linetype = "Correction Type") +
+    theme_bw() +
+    theme(
+      axis.text.x = element_text(angle = 45, hjust = 1),
+      legend.position = c(0.02, 0.98),
+      legend.justification = c("left", "top"),
+      legend.background = element_rect(fill = "white", color = "grey80"),
+      legend.key.size = unit(0.7, "lines")
+    )
+  
+  if (save_plots) {
+    ggsave(paste0(fn_basedir, filename), p, width = width, height = height)
+  } else {
+    print(p)
+  }
+}
 
 
 ##### TODO: CHECK IF NEEDED AND REMOVE #####
