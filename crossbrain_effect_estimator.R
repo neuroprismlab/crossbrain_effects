@@ -175,12 +175,16 @@ sigmas_master <- plot_densities(res, res_mv,  n_pts, fn_basedir, cats, cat_color
 
 # Power plots
 # - mass univariate
-avg_power <- get_average_power(sigmas_master, do_mv = FALSE)
+results_uv <- get_average_power(sigmas_master, do_mv = FALSE)
+avg_power <- results_uv$avg_power
+proportion_detectable <- results_uv$proportion_detectable
+
 plot_average_power(avg_power, do_mv = FALSE, cat_colors,fn_basedir)
 
 # - multivariate
-avg_power_mv <- get_average_power(sigmas_master, res_mv = res_mv, do_mv = TRUE)
-plot_average_power(avg_power_mv, do_mv = TRUE, cat_colors,fn_basedir)
+results_uv <- get_average_power(sigmas_master, res_mv = res_mv, do_mv = TRUE)
+avg_power_mv <- results_uv$avg_power
+proportion_detectable_mv <- results_uv$proportion_detectable
 
 # Req'd n plots:
 # - mass univariate
@@ -992,6 +996,7 @@ get_average_power <- function(sigmas_master, res_mv = NULL, do_mv = FALSE) {
   
   n_vector <- c(0, 25, 50, 100, 500, 1000, 5000, 50000, 300000, Inf)
   avg_power <- data.frame()
+  proportion_detectable <- data.frame()
   
   # get cats from res
   cats <- rownames(sigmas_master)
@@ -1043,12 +1048,23 @@ get_average_power <- function(sigmas_master, res_mv = NULL, do_mv = FALSE) {
         values_to = "avg_power"
       )
     
+    proportion_detectable_tmp <- proportion_detectable_tmp %>%
+      pivot_longer(
+        cols = c(uncorrected, bonferroni, fdr),
+        names_to = "correction_type",
+        values_to = "proportion_detectable"
+      )
+    
     avg_power <- rbind(avg_power, avg_power_tmp)
+    proportion_detectable <- rbind(proportion_detectable, proportion_detectable_tmp)
+    
   }
 
   # Preserve facet order to match cats vector
   avg_power$overarching_category <- factor(avg_power$overarching_category, levels = cats)
-  return(avg_power)
+  proportion_detectable$overarching_category <- factor(proportion_detectable$overarching_category, levels = cats)
+  return(list(avg_power=avg_power, proportion_detectable=proportion_detectable))
+  
 }
 
 
