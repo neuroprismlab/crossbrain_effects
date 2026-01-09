@@ -307,8 +307,8 @@ BHpower <- function(pi0, alphaFDR, delta, sigma_delta=0) {
 
 # Proportion of tests with above "adequate" (1-beta) power at significance level alpha
 proportion_detectable <- function(pp, beta, n, delta, sigma_delta=0)  {
-  k <- qnorm(1 - pp) - qnorm(beta)
-  1 - pnorm((k - delta) * sqrt(n) / sigma_delta)
+  d_star <- qnorm(1 - pp) - qnorm(beta)
+  1 - pnorm((d_star/sqrt(n) - delta) / sigma_delta)
 }
 
 BH_proportion_detectable <- function(pi0, alphaFDR, beta, n, delta, sigma_delta=0) {
