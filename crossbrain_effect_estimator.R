@@ -257,7 +257,7 @@ r_sq_se <- function(r_sq, n) {
 
 # pi0  : proportion of true nulls
 # delta: noncentrality parameter = d * sqrt(n)
-# sigma_delta: standard deviation of noncentrality parameter across tests
+# sigma_delta: standard deviation of noncentrality parameter across tests - sigma_d * sqrt(n)
 # alphaFDR : target FDR level (e.g. 0.05)
 # pp is p-value threshold for rejection of test (test-specific Type I error)
 #   uncorrected: pp=alpha
@@ -269,20 +269,21 @@ r_sq_se <- function(r_sq, n) {
 #   For FDR, BHpower(pi0, alphaFDR, d*sqrt(n))
 #   For uncorrected, power=F1(alphaFDR,d*sqrt(n))
 #   For Bonferroni, power=F1(alphaFDR/k,d*sqrt(n))
-F1 <- function(pp, delta, sigma_delta=0)  {
-  1 - pnorm((qnorm(1 - pp) - delta) / sqrt(1 + sigma_delta^2))
+F1 <- function(pp, delta, sigma_delta=0, n_groups, n_sides)  {
+  n_sides*(1 - pnorm((qnorm(1 - pp) - delta/n_groups) / sqrt(1 + (sigma_delta/n_groups)^2)))
 }
 
 # BH-FDR threshold anticipated by the process approach to FDR
-BHthresh <- function(pi0, alphaFDR, delta, sigma_delta=0) {
+BHthresh <- function(pi0, alphaFDR, delta, sigma_delta=0, n_groups, n_sides) {
   pi1 <- 1 - pi0
+  if (n_sides == 2) { alphaFDR <- alphaFDR / 2 } # adjust for 2-sided test
   
   # FDR Power Implicit Equation, solved for pp (p')
   #    pi0 * pp + pi1 * F1(t) = pp / alphaFDR
   # pp is the long-run p-value threshold for this setting, and power
   # is then usual power at this threshold.
   f <- function(t) {
-    pi0 * t + pi1 * F1(t,delta,sigma_delta) - t / alphaFDR
+    pi0 * t + pi1 * F1(t,delta,sigma_delta,n_groups,n_sides) - t / (alphaFDR)
   }
   
   ## Trivial solution t = 0 always exists.
@@ -301,10 +302,10 @@ BHthresh <- function(pi0, alphaFDR, delta, sigma_delta=0) {
 }
 
 # Average BH power (per non-null) for given pi0, delta, alphaFDR
-BHpower <- function(pi0, alphaFDR, delta, sigma_delta=0) {
-  pp <- BHthresh(pi0, alphaFDR, delta, sigma_delta)
+BHpower <- function(pi0, alphaFDR, delta, sigma_delta=0, n_groups, n_sides) {
+  pp <- BHthresh(pi0, alphaFDR, delta, sigma_delta, n_groups, n_sides)
   if (pp == 0) return(0)
-  F1(pp, delta, sigma_delta)
+  F1(pp, delta, sigma_delta, n_groups, n_sides)
 }
 
 # additional power functions - Steph
@@ -314,15 +315,17 @@ BHpower <- function(pi0, alphaFDR, delta, sigma_delta=0) {
 # n: sample size
 
 # Proportion of tests with above "adequate" (1-beta) power at significance level alpha
-proportion_detectable <- function(pp, beta, n, delta, sigma_delta=0)  {
+proportion_detectable <- function(pp, beta, delta, sigma_delta=0, n_groups=1, n_sides=2)  {
+  if (n_sides == 2) { pp <- pp / 2 } # if 2-sided, significance threshold/2
   d_star <- qnorm(1 - pp) - qnorm(beta)
-  1 - pnorm((d_star/sqrt(n) - delta) / sigma_delta)
+  n_sides*(1 - pnorm((d_star - delta/n_groups) / sigma_delta/n_groups))
 }
 
-BH_proportion_detectable <- function(pi0, alphaFDR, beta, n, delta, sigma_delta=0) {
-  pp <- BHthresh(pi0, alphaFDR, delta, sigma_delta)
+BH_proportion_detectable <- function(pi0, alphaFDR, beta, delta, sigma_delta=0, n_groups=1, n_sides=2) {
+  pp <- BHthresh(pi0, alphaFDR, delta, sigma_delta, n_groups, n_sides)
+  if (n_sides == 2) { pp <- pp * 2 } # workaround for proportion_detectable function: for 2-n_groups, need to check both sides for beta, but not correct the pp (since already adjusted)
   if (pp == 0) return(0)
-  proportion_detectable(pp, beta, n, delta, sigma_delta)
+  proportion_detectable(pp, beta, delta, sigma_delta, n_groups, n_sides)
 }
 
 
@@ -994,8 +997,8 @@ get_average_power <- function(sigmas_master, res_mv = NULL, do_mv = FALSE) {
     xlim <- c(-0.8, 0.8)
   }
   
-  alpha <- 0.05/2 # TODO: is this simple adjustment enough to make equivalent to two-sided?
-  alpha_mv <- 0.05
+  alpha <- 0.05
+  n_sides <- 2 # two-tailed test
   target_power <- 0.8
   
   n_vector <- c(0, 25, 50, 100, 500, 1000, 5000, 50000, 300000, Inf)
@@ -1014,10 +1017,12 @@ get_average_power <- function(sigmas_master, res_mv = NULL, do_mv = FALSE) {
     
     # set test type
     test_type <- if (grepl("task", cat)) "one.sample" else "two.sample"
+    ifelse(test_type == "one.sample", n_groups <- 1, n_groups <- 2)
     
     if (do_mv) {
-      avg_power_tmp$uncorrected <- sapply(n_vector, function(n) pwr.t.test(n = n, d = res_mv[cat, "est"], sig.level = alpha_mv, type = test_type, alternative = "two.sided")$power)
-      # TODO: for two-sample, n will be single group size - account for this
+      avg_power_tmp$uncorrected <- sapply(n_vector, function(n) pwr.t.test(n = n, d = res_mv[cat, "est"], sig.level = alpha, type = test_type, alternative = "greater")$power)
+      avg_power_tmp$uncorrected[n_vector==0] <- 0 # power=0 at n=0
+      # TODO: for two-n_groups, n will be single group size - account for this
       avg_power_tmp$bonferroni <- NA
       avg_power_tmp$fdr <- NA
       
@@ -1033,15 +1038,15 @@ get_average_power <- function(sigmas_master, res_mv = NULL, do_mv = FALSE) {
       # get average power at each n
       k <- 35778 # assuming Shen atlas dimensionality, although much larger for voxelwise # TODO: decide whether to adjust voxel
       
-      avg_power_tmp$uncorrected <- sapply(n_vector, function(n) F1(alpha, 0, this_sigma*sqrt(n)))
-      avg_power_tmp$bonferroni <- sapply(n_vector, function(n) F1(alpha/k, 0, this_sigma*sqrt(n)))
-      avg_power_tmp$fdr <- sapply(n_vector, function(n) BHpower(1, alpha, 0, this_sigma*sqrt(n)))
+      avg_power_tmp$uncorrected <- sapply(n_vector, function(n) F1(alpha, 0, this_sigma*sqrt(n),n_groups,n_sides))
+      avg_power_tmp$bonferroni <- sapply(n_vector, function(n) F1(alpha/k, 0, this_sigma*sqrt(n),n_groups,n_sides))
+      avg_power_tmp$fdr <- sapply(n_vector, function(n) BHpower(0, alpha, 0, this_sigma*sqrt(n),n_groups,n_sides))
       # TODO: test (especially using this sigma_delta for uncorr/bonf, not shown by Tom)
       # TODO: update for 2-sample
       
-      proportion_detectable_tmp$uncorrected <- sapply(n_vector, function(n) proportion_detectable(alpha, 1-target_power, n, 0, this_sigma*sqrt(n)))
-      proportion_detectable_tmp$bonferroni <- sapply(n_vector, function(n) proportion_detectable(alpha/k, 1-target_power, n, 0, this_sigma*sqrt(n)))
-      proportion_detectable_tmp$fdr <- sapply(n_vector, function(n) BH_proportion_detectable(1, alpha, 1-target_power, n, 0, this_sigma*sqrt(n)))
+      proportion_detectable_tmp$uncorrected <- sapply(n_vector, function(n) proportion_detectable(alpha, 1-target_power, 0, this_sigma*sqrt(n),n_groups,n_sides))
+      proportion_detectable_tmp$bonferroni <- sapply(n_vector, function(n) proportion_detectable(alpha/k, 1-target_power, 0, this_sigma*sqrt(n),n_groups,n_sides))
+      proportion_detectable_tmp$fdr <- sapply(n_vector, function(n) BH_proportion_detectable(0, alpha, 1-target_power, 0, this_sigma*sqrt(n),n_groups,n_sides))
     }
     
     # make long, moving correction type to a new column
