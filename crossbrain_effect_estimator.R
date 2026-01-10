@@ -312,7 +312,8 @@ BHpower <- function(pi0, alphaFDR, delta, sigma_delta=0, n_groups, n_sides) {
 
 # additional definitions
 # beta: Type II error (1-power)
-# n: sample size
+# n_groups (1 or 2): 1- or 2-sample test
+# n_sides (1 or 2): 1- or 2-sided test (note: 1-sided assumes positive tail; multiply data by -1 manually for negative tail)
 
 # Proportion of tests with above "adequate" (1-beta) power at significance level alpha
 proportion_detectable <- function(pp, beta, delta, sigma_delta=0, n_groups=1, n_sides=2)  {
@@ -323,7 +324,7 @@ proportion_detectable <- function(pp, beta, delta, sigma_delta=0, n_groups=1, n_
 
 BH_proportion_detectable <- function(pi0, alphaFDR, beta, delta, sigma_delta=0, n_groups=1, n_sides=2) {
   pp <- BHthresh(pi0, alphaFDR, delta, sigma_delta, n_groups, n_sides)
-  if (n_sides == 2) { pp <- pp * 2 } # workaround for proportion_detectable function: for 2-n_groups, need to check both sides for beta, but not correct the pp (since already adjusted)
+  if (n_sides == 2) { pp <- pp * 2 } # workaround for proportion_detectable function: for 2-sample, need to check both sides for beta, but not correct the pp (since already adjusted)
   if (pp == 0) return(0)
   proportion_detectable(pp, beta, delta, sigma_delta, n_groups, n_sides)
 }
@@ -1022,7 +1023,6 @@ get_average_power <- function(sigmas_master, res_mv = NULL, do_mv = FALSE) {
     if (do_mv) {
       avg_power_tmp$uncorrected <- sapply(n_vector, function(n) pwr.t.test(n = n, d = res_mv[cat, "est"], sig.level = alpha, type = test_type, alternative = "greater")$power)
       avg_power_tmp$uncorrected[n_vector==0] <- 0 # power=0 at n=0
-      # TODO: for two-n_groups, n will be single group size - account for this
       avg_power_tmp$bonferroni <- NA
       avg_power_tmp$fdr <- NA
       
@@ -1041,8 +1041,6 @@ get_average_power <- function(sigmas_master, res_mv = NULL, do_mv = FALSE) {
       avg_power_tmp$uncorrected <- sapply(n_vector, function(n) F1(alpha, 0, this_sigma*sqrt(n),n_groups,n_sides))
       avg_power_tmp$bonferroni <- sapply(n_vector, function(n) F1(alpha/k, 0, this_sigma*sqrt(n),n_groups,n_sides))
       avg_power_tmp$fdr <- sapply(n_vector, function(n) BHpower(0, alpha, 0, this_sigma*sqrt(n),n_groups,n_sides))
-      # TODO: test (especially using this sigma_delta for uncorr/bonf, not shown by Tom)
-      # TODO: update for 2-sample
       
       proportion_detectable_tmp$uncorrected <- sapply(n_vector, function(n) proportion_detectable(alpha, 1-target_power, 0, this_sigma*sqrt(n),n_groups,n_sides))
       proportion_detectable_tmp$bonferroni <- sapply(n_vector, function(n) proportion_detectable(alpha/k, 1-target_power, 0, this_sigma*sqrt(n),n_groups,n_sides))
