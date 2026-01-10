@@ -303,6 +303,7 @@ BHthresh <- function(pi0, alphaFDR, delta, sigma_delta=0, n_groups, n_sides) {
 
 # Average BH power (per non-null) for given pi0, delta, alphaFDR
 BHpower <- function(pi0, alphaFDR, delta, sigma_delta=0, n_groups, n_sides) {
+  if (!is.finite(delta) || !is.finite(sigma_delta)) return(1) # catch case where effects infinitely big so guaranteed to be detected
   pp <- BHthresh(pi0, alphaFDR, delta, sigma_delta, n_groups, n_sides)
   if (pp == 0) return(0)
   F1(pp, delta, sigma_delta, n_groups, n_sides)
@@ -323,6 +324,7 @@ proportion_detectable <- function(pp, beta, delta, sigma_delta=0, n_groups=1, n_
 }
 
 BH_proportion_detectable <- function(pi0, alphaFDR, beta, delta, sigma_delta=0, n_groups=1, n_sides=2) {
+  if (!is.finite(delta) || !is.finite(sigma_delta)) return(1) # catch case where effects infinitely big so guaranteed to be detected
   pp <- BHthresh(pi0, alphaFDR, delta, sigma_delta, n_groups, n_sides)
   if (n_sides == 2) { pp <- pp * 2 } # workaround for proportion_detectable function: for 2-sample, need to check both sides for beta, but not correct the pp (since already adjusted)
   if (pp == 0) return(0)
