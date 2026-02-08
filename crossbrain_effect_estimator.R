@@ -41,6 +41,7 @@ library(patchwork)
 n_large_threshold <- 900
 cats <- c("psychological", "physical", "task activation", "task connectivity")
 cat_colors <- RColorBrewer::brewer.pal(length(cats), "Set1")
+cat_colors[c(1,2)] <- cat_colors[c(2,1)]
 names(cat_colors) <- cats
 n_pts <- 10000
 
