@@ -1106,13 +1106,15 @@ plot_average_power <- function(df, do_mv = FALSE, cat_colors, fn_basedir) {
     scale_color_manual(values = cat_colors) +
     facet_wrap(~overarching_category, nrow = nrow, scales = "free_y") +
     labs(title = title, x = "Sqrt Sample Size", y = "Average Power", color = "Category", linetype = "Correction Type") +
+    guides(color = "none") +
     theme_bw() +
     theme(
       axis.text.x = element_text(angle = 45, hjust = 1),
       legend.position = c(0.02, 0.98),
       legend.justification = c("left", "top"),
       legend.background = element_rect(fill = "white", color = "grey80"),
-      legend.key.size = unit(0.7, "lines")
+      legend.key.width = unit(1.5, "lines"),
+      legend.key.height = unit(0.8, "lines")
     )
   
   if (save_plots) {
@@ -1149,13 +1151,15 @@ plot_proportion_detectable <- function(df, do_mv = FALSE, cat_colors, fn_basedir
     scale_color_manual(values = cat_colors) +
     facet_wrap(~overarching_category, nrow = nrow, scales = "free_y") +
     labs(title = title, x = "Sample Size", y = "Proportion Detectable", color = "Category", linetype = "Correction Type") +
+    guides(color = "none") +
     theme_bw() +
     theme(
       axis.text.x = element_text(angle = 45, hjust = 1),
       legend.position = c(0.02, 0.98),
       legend.justification = c("left", "top"),
       legend.background = element_rect(fill = "white", color = "grey80"),
-      legend.key.size = unit(0.7, "lines")
+      legend.key.width = unit(1.5, "lines"),
+      legend.key.height = unit(0.8, "lines")
     )
   
   if (save_plots) {
