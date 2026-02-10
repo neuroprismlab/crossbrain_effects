@@ -693,7 +693,7 @@ estimate_params <- function(df, df_meta, n_pts, main_title, fn, plot_type = "cro
     # plot
     df$x_plot <- df$n/df$k
     # df_meta$x_plot <- df_meta$n
-    x_label <- "Log adjusted sample size (log(n/k))"
+    x_label <- "Log adjusted sample size factor (log(n/k))"
     # use ndivk_max_plt (prediction max) to set the upper x limit
     x_limits <- c(ndivk_min_plt, ndivk_max_plt)
     # OLD: for plot_with_inv_sqrt_n :
@@ -791,14 +791,24 @@ plot_densities <- function(res, res_mv,  n_pts, fn_basedir, cats, cat_colors, sa
   
   # params
   do_horizontal_panels <- TRUE
+  xlim_annotate <- c(-0.2, 0.2)
+  xbreaks <- c(-2, 1, -0.5, -0.2, 0, 0.2, 0.5, 1, 2)
   
   for (do_mv in c(FALSE, TRUE)) {
     if (do_mv) {
       mv_suffix <- '_mv'
       xlim <- c(0, 5)
+      xlim_annotate[1] <- 0
+      xtick_angle <- 45 # fit stuff if mv
+      xbreaks <- xbreaks[xbreaks >= xlim[1]]
+      vjust <- 1
+      hjust <- 1
     } else {
       mv_suffix <- ''
       xlim <- c(-0.8, 0.8)
+      xtick_angle <- 0
+      vjust <- 0.5
+      hjust <- 0.5
     }
     d <- seq(xlim[1], xlim[2], length.out = n_pts)
     
@@ -910,11 +920,11 @@ plot_densities <- function(res, res_mv,  n_pts, fn_basedir, cats, cat_colors, sa
   if (do_horizontal_panels) {
     nrow <- 1
     width = 4 * length(cats)
-    height = 4
+    height = 3.8
   } else {
     nrow <- length(cats)
     width = 5
-    height = 4 * length(cats)
+    height = 3.8 * length(cats)
   }
   density_df$fill <- density_df$sigma_type=="est"
   
@@ -927,16 +937,21 @@ plot_densities <- function(res, res_mv,  n_pts, fn_basedir, cats, cat_colors, sa
     p <- ggplot(density_df %>% filter(category == cat), aes(x = d, y = density, color = overarching_category, linetype = sigma_type)) +
       geom_ribbon(data = subset(density_df, category == cat & sigma_type == "est"),
                   aes(ymin = 0, ymax = density, fill = overarching_category), 
-                  alpha = 0.35, colour = NA, show.legend = FALSE) +
+                  alpha = 0.8, colour = NA, show.legend = FALSE) +
+      annotate("rect", xmin = xlim_annotate[1], xmax = xlim_annotate[2], ymin = 0, ymax = Inf, 
+               fill = "gold", colour=NA, alpha = 0.6) + # using annotate to avoid drawing multiple->too high opacity
       geom_line(linewidth = 0.8, lineend = "butt") +
       scale_color_manual(values = cat_colors) +
       # use named linetypes so dash patterns remain visible at thicker linewidth
       scale_linetype_manual(values = c(est = "solid", lwr = "dashed", upr = "dotdash")) +
       scale_fill_manual(values = cat_colors, guide = "none") +
       scale_y_continuous(limits = c(0, max(density_df %>% filter(category == cat, sigma_type == "est") %>% pull(density), na.rm = TRUE))) +
+      scale_x_continuous(breaks = xbreaks) +
       labs(title = cat, x = "Cohen's d", y = "Density") +
       theme_bw() +
-      theme(legend.position = "none")
+      theme(legend.position = "none",
+            axis.text.x = element_text(angle = xtick_angle, vjust = vjust, hjust = hjust)
+            )
     
     plot_list[[cat]] <- p
   }
