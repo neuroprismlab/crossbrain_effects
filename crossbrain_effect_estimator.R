@@ -551,7 +551,7 @@ estimate_params <- function(df, df_meta, n_pts, main_title, fn, plot_type = "cro
   if (plot_type == "crossvariable") {
     y_var <- "var_xv"
     y_label <- expression("Observed cross-brain effect variance (var("*hat(theta)*"))")
-    y_limits <- c(-0.05, 0.3)
+    y_limits <- c(-0.021, 0.155)
   } else if (plot_type == "mv") { # note: all the same procedures here can also be used for the univariate case, just need to change the "mv" variable
     y_var <- "mv"
     y_label <- expression("Observed multivariate effect ("*hat(theta)*")")
@@ -693,7 +693,7 @@ estimate_params <- function(df, df_meta, n_pts, main_title, fn, plot_type = "cro
     # plot
     df$x_plot <- df$n/df$k
     # df_meta$x_plot <- df_meta$n
-    x_label <- "Log adjusted sample size factor (log(n/k))"
+    x_label <- "n/k (log scale)"
     # use ndivk_max_plt (prediction max) to set the upper x limit
     x_limits <- c(ndivk_min_plt, ndivk_max_plt)
     # OLD: for plot_with_inv_sqrt_n :
@@ -793,6 +793,8 @@ plot_densities <- function(res, res_mv,  n_pts, fn_basedir, cats, cat_colors, sa
   do_horizontal_panels <- TRUE
   xlim_annotate <- c(-0.2, 0.2)
   xbreaks <- c(-2, 1, -0.5, -0.2, 0, 0.2, 0.5, 1, 2)
+  axis_text_size <- 14
+  axis_title_size <- 16
   
   for (do_mv in c(FALSE, TRUE)) {
     if (do_mv) {
@@ -947,10 +949,16 @@ plot_densities <- function(res, res_mv,  n_pts, fn_basedir, cats, cat_colors, sa
       scale_fill_manual(values = cat_colors, guide = "none") +
       scale_y_continuous(limits = c(0, max(density_df %>% filter(category == cat, sigma_type == "est") %>% pull(density), na.rm = TRUE))) +
       scale_x_continuous(breaks = xbreaks) +
+      # labs(title = cat) +
       labs(title = cat, x = "Cohen's d", y = "Density") +
       theme_bw() +
       theme(legend.position = "none",
-            axis.text.x = element_text(angle = xtick_angle, vjust = vjust, hjust = hjust)
+            axis.text.x = element_text(angle = xtick_angle, vjust = vjust, hjust = hjust, size = axis_text_size),
+            axis.text.y = element_text(size = axis_text_size),
+            axis.title.x = element_text(size = axis_title_size),
+            axis.title.y = element_text(size = axis_title_size)
+            # axis.title.x = element_blank(),
+            # axis.title.y = element_blank()
             )
     
     plot_list[[cat]] <- p
@@ -1157,6 +1165,8 @@ plot_proportion_detectable <- function(df, do_mv = FALSE, cat_colors, fn_basedir
     width = 5
     height = 4 * length(cat_colors)
   }
+  axis_text_size <- 14
+  axis_title_size <- 16
   
   n_str <- as.character(sort(unique(df$n)))
   n_str[length(n_str)] <- "∞"
@@ -1170,7 +1180,12 @@ plot_proportion_detectable <- function(df, do_mv = FALSE, cat_colors, fn_basedir
     guides(color = "none") +
     theme_bw() +
     theme(
-      axis.text.x = element_text(angle = 45, hjust = 1),
+      axis.text.x = element_text(angle = 45, hjust = 1, size = , size = axis_text_size),
+      axis.text.y = element_text(size = axis_text_size),
+      axis.title.x = element_text(size = axis_title_size),
+      axis.title.y = element_text(size = axis_title_size),
+      # axis.title.x = element_blank(),
+      # axis.title.y = element_blank(),
       legend.position = c(0.02, 0.98),
       legend.justification = c("left", "top"),
       legend.background = element_rect(fill = "white", color = "grey80"),
