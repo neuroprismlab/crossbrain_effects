@@ -6,7 +6,7 @@ if (!exists('project_dir')) { # temp trigger to use pre-set paths
   print('Assuming script is in working directory and creating results in working directory.')
   script_path <- 'plot_results.R'
   data_path <- 'braineffex_data_09-24-25.RData' # name of file we will d/l from OSF
-  output_dir <- 'manuscript/'
+  output_dir <- 'crossbrain_effects/'
 }
 
 # source library
