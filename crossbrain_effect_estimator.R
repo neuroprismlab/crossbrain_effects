@@ -1072,13 +1072,13 @@ get_average_power <- function(sigmas_master, res_mv = NULL, do_mv = FALSE) {
       warning(paste0("Using hard-coded number of tests (k=", k, ") for power calculations."))
       
       
-      avg_power_tmp$uncorrected <- sapply(n_vector, function(n) F1(alpha, 0, this_sigma*sqrt(n),n_groups,n_sides))
-      avg_power_tmp$bonferroni <- sapply(n_vector, function(n) F1(alpha/k, 0, this_sigma*sqrt(n),n_groups,n_sides))
-      avg_power_tmp$fdr <- sapply(n_vector, function(n) BHpower(0, alpha, 0, this_sigma*sqrt(n),n_groups,n_sides))
+      avg_power_tmp$uncorrected <- sapply(n_vector, function(n) F1(alpha, 0, this_sigma*sqrt(n/n_groups^2),n_groups,n_sides))
+      avg_power_tmp$bonferroni <- sapply(n_vector, function(n) F1(alpha/k, 0, this_sigma*sqrt(n/n_groups^2),n_groups,n_sides))
+      avg_power_tmp$fdr <- sapply(n_vector, function(n) BHpower(0, alpha, 0, this_sigma*sqrt(n/n_groups^2),n_groups,n_sides))
       
-      proportion_detectable_tmp$uncorrected <- sapply(n_vector, function(n) proportion_detectable(alpha, 1-target_power, 0, this_sigma*sqrt(n),n_groups,n_sides))
-      proportion_detectable_tmp$bonferroni <- sapply(n_vector, function(n) proportion_detectable(alpha/k, 1-target_power, 0, this_sigma*sqrt(n),n_groups,n_sides))
-      proportion_detectable_tmp$fdr <- sapply(n_vector, function(n) BH_proportion_detectable(0, alpha, 1-target_power, 0, this_sigma*sqrt(n),n_groups,n_sides))
+      proportion_detectable_tmp$uncorrected <- sapply(n_vector, function(n) proportion_detectable(alpha, 1-target_power, 0, this_sigma*sqrt(n/n_groups^2),n_groups,n_sides))
+      proportion_detectable_tmp$bonferroni <- sapply(n_vector, function(n) proportion_detectable(alpha/k, 1-target_power, 0, this_sigma*sqrt(n/n_groups^2),n_groups,n_sides))
+      proportion_detectable_tmp$fdr <- sapply(n_vector, function(n) BH_proportion_detectable(0, alpha, 1-target_power, 0, this_sigma*sqrt(n/n_groups^2),n_groups,n_sides))
     }
     
     # make long, moving correction type to a new column
