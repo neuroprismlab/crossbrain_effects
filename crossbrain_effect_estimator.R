@@ -255,6 +255,7 @@ r_sq_se <- function(r_sq, n) {
 }
 
 # power functions - provided by Thomas Nichols
+#                   2-sided extensions added by Steph
 
 # pi0  : proportion of true nulls
 # delta: noncentrality parameter = d * sqrt(n)
@@ -271,13 +272,12 @@ r_sq_se <- function(r_sq, n) {
 #   For uncorrected, power=F1(alphaFDR,d*sqrt(n))
 #   For Bonferroni, power=F1(alphaFDR/k,d*sqrt(n))
 F1 <- function(pp, delta, sigma_delta=0, n_groups, n_sides)  {
-  n_sides*(1 - pnorm((qnorm(1 - pp) - delta/n_groups) / sqrt(1 + (sigma_delta/n_groups)^2)))
+  (1 - pnorm((qnorm(1 - pp/2) - delta/n_groups) / sqrt(1 + (sigma_delta/n_groups)^2)))
 }
 
 # BH-FDR threshold anticipated by the process approach to FDR
 BHthresh <- function(pi0, alphaFDR, delta, sigma_delta=0, n_groups, n_sides) {
   pi1 <- 1 - pi0
-  if (n_sides == 2) { alphaFDR <- alphaFDR / 2 } # adjust for 2-sided test
   
   # FDR Power Implicit Equation, solved for pp (p')
   #    pi0 * pp + pi1 * F1(t) = pp / alphaFDR
