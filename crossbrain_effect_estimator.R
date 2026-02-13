@@ -1188,7 +1188,7 @@ plot_proportion_detectable <- function(df, do_mv = FALSE, cat_colors, fn_basedir
     guides(color = "none") +
     theme_bw() +
     theme(
-      axis.text.x = element_text(angle = 45, hjust = 1, size = , size = axis_text_size),
+      axis.text.x = element_text(angle = 45, hjust = 1, size = axis_text_size),
       axis.text.y = element_text(size = axis_text_size),
       axis.title.x = element_text(size = axis_title_size),
       axis.title.y = element_text(size = axis_title_size),
