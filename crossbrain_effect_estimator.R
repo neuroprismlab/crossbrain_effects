@@ -1062,7 +1062,15 @@ get_average_power <- function(sigmas_master, res_mv = NULL, do_mv = FALSE) {
       this_sigma <- as.numeric(sigmas["est"])
 
       # get average power at each n
-      k <- 35778 # assuming Shen atlas dimensionality, although much larger for voxelwise # TODO: decide whether to adjust voxel
+      
+      # comparisons based on studies available in meta-analysis 02102026
+      if (cat=="task activation") {
+        k <- 204899 # based on number of common voxels in meta-analysis
+      } else {
+        k <- 35778 # Shen atlas dimensionality
+      }
+      warning(paste0("Using hard-coded number of tests (k=", k, ") for power calculations."))
+      
       
       avg_power_tmp$uncorrected <- sapply(n_vector, function(n) F1(alpha, 0, this_sigma*sqrt(n),n_groups,n_sides))
       avg_power_tmp$bonferroni <- sapply(n_vector, function(n) F1(alpha/k, 0, this_sigma*sqrt(n),n_groups,n_sides))
