@@ -15,7 +15,7 @@ source(script_path)
 # set params
 estimate = 'd' # only works for d currently, need to fix calculate_effex/effect_size/scripts/checker.R to work for r_sq
 pooling_methods = c('none', 'net')
-motion_methods = c('regression','threshold') # motion method for other tests
+motion_methods = c('none','regression','threshold') # motion method for other tests
 save_plots = TRUE # whether to save the plots
 get_data_from_OSF = FALSE
 osf_file_id <- 'g84tk'
