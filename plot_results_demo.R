@@ -30,7 +30,7 @@ load(data_path)
 # generate plots
 for (pooling_method in pooling_methods) {
   for (motion_method in motion_methods) {
-    print(paste0('Doing pooling method: ', pooling_method, 'motion: ', motion_method))
+    print(paste0('Doing pooling method: ', pooling_method, ', motion: ', motion_method))
     combo_name <- paste0('pooling.', pooling_method, '.motion.',motion_method,'.mv.none') # note: automatically does mv.none->mv.multi in the background
     output_basedir <- paste0(output_dir, combo_name,'/')  # user-defined path to save the plots
     estimate_xb_effects(estimate, output_basedir, v, combo_name, save_plots)
