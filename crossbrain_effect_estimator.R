@@ -272,7 +272,7 @@ r_sq_se <- function(r_sq, n) {
 #   For uncorrected, power=F1(alphaFDR,d*sqrt(n))
 #   For Bonferroni, power=F1(alphaFDR/k,d*sqrt(n))
 F1 <- function(pp, delta, sigma_delta=0, n_groups, n_sides)  {
-  (1 - pnorm((qnorm(1 - pp/2) - delta/n_groups) / sqrt(1 + (sigma_delta/n_groups)^2)))
+  n_sides * (1 - pnorm((qnorm(1 - pp/2) - delta/n_groups) / sqrt(1 + (sigma_delta/n_groups)^2)))
 }
 
 # BH-FDR threshold anticipated by the process approach to FDR
