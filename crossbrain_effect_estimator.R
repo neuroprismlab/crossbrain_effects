@@ -861,11 +861,15 @@ estimate_params <- function(df, df_meta, n_pts, main_title, fn, plot_type = "cro
         cat_est <- post_summary[est_row, cat_col]
         cat_lwr <- post_summary[lwr_row, cat_col]
         cat_upr <- post_summary[upr_row, cat_col]
+        negligible_thresh <- 0.001
+        prob_negligible <- fit_all$pposterior(beta = negligible_thresh, which.beta = cat_idx) -
+          fit_all$pposterior(beta = -1*negligible_thresh, which.beta = cat_idx)
         
         res[[cat]] <- data.frame(
           est = cat_est,
           lwr = cat_lwr,
           upr = cat_upr,
+          prob_negligible = prob_negligible,
           phi2_est = slope_est,
           phi2_lwr = slope_lwr,
           phi2_upr = slope_upr,
