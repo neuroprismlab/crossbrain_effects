@@ -397,7 +397,7 @@ get_study_summaries <- function(data, study, estimate, combo_name) {
   d_cons_var_xv <- numeric(length(data))
   d_var_xv__emp_cons <- numeric(length(data))
   d_n <- numeric(length(data))
-  d_k <- numeric(length(data))
+  d_ksq <- numeric(length(data))
   d_mv <- numeric(length(data))
   d_mv_lb <- numeric(length(data))
   d_mv_ub <- numeric(length(data))
@@ -514,7 +514,7 @@ get_study_summaries <- function(data, study, estimate, combo_name) {
         vi_var_xv__emp[i] <- NA
         vi_mv[i] <- NA
       }
-      d_k[i] <- 4
+      d_ksq[i] <- 4
     } else if (study$orig_stat_type[[i]] == "t" || study$orig_stat_type[[i]] == "r") {
       # if (!is.null(data[[i]][[combo_name]]$n)) {
       d_n[i] <- data[[i]][[combo_name]]$n
@@ -523,18 +523,18 @@ get_study_summaries <- function(data, study, estimate, combo_name) {
           vi[i] <- d_se(d_var_xv[i], d_n[i]/2, d_n[i]/2)^2
           vi_var_xv__emp[i] <- d_se(d_var_xv__emp[i], d_n[i]/2, d_n[i]/2)^2
           vi_mv[i] <- d_se(d_mv[i], d_n[i]/2, d_n[i]/2)^2
-          d_k[i] <- 4
+          d_ksq[i] <- 4
         } else { # normal 1-sample t-test
           vi[i] <- d_se(d_var_xv[i], d_n[i])^2
           vi_var_xv__emp[i] <- d_se(d_var_xv__emp[i], d_n[i])^2
           vi_mv[i] <- d_se(d_mv[i], d_n[i])^2
-          d_k[i] <- 1
+          d_ksq[i] <- 1
         }
       } else if (estimate == "r_sq") {
         vi[i] <- r_sq_se(d_var_xv[i], d_n[i])^2
         vi_var_xv__emp[i] <- r_sq_se(d_var_xv__emp[i], d_n[i])^2
         vi_mv[i] <- r_sq_se(d_mv[i], d_n[i])^2
-        d_k[i] <- 4
+        d_ksq[i] <- 4
       }
     } else {
       d_n[i] <- NA
@@ -556,7 +556,7 @@ get_study_summaries <- function(data, study, estimate, combo_name) {
   
   # set up final data frame
   
-  df <- data.frame(name = names(data), mean = d_mean, var_xv = d_var_xv, var_xv__emp = d_var_xv__emp, mean_cons = d_cons_mean, var_xv_cons = d_cons_var_xv, var_xv__emp_cons = d_var_xv__emp_cons, n = d_n, category = as.factor(study$category), dataset = I(study$dataset), ref = study$ref, orig_stat_type = unlist(study$orig_stat_type), mv = d_mv, mv_lb = d_mv_lb, mv_ub = d_mv_ub, vi_var_xv = vi, vi_var_xv__emp = vi_var_xv__emp, vi_mv = vi_mv, k = d_k, shapiro = shapiro, stringsAsFactors = FALSE)
+  df <- data.frame(name = names(data), mean = d_mean, var_xv = d_var_xv, var_xv__emp = d_var_xv__emp, mean_cons = d_cons_mean, var_xv_cons = d_cons_var_xv, var_xv__emp_cons = d_var_xv__emp_cons, n = d_n, category = as.factor(study$category), dataset = I(study$dataset), ref = study$ref, orig_stat_type = unlist(study$orig_stat_type), mv = d_mv, mv_lb = d_mv_lb, mv_ub = d_mv_ub, vi_var_xv = vi, vi_var_xv__emp = vi_var_xv__emp, vi_mv = vi_mv, ksq = d_ksq, shapiro = shapiro, stringsAsFactors = FALSE)
   
   # for meta: if exists, add n_studies
   if ("n_studies" %in% colnames(study)) {
@@ -611,7 +611,7 @@ estimate_params <- function(df, df_meta, n_pts, main_title, fn, plot_type = "cro
   }
   
   # sort by sample size
-  df <- df[order(df$n/df$k, decreasing = FALSE), ]
+  df <- df[order(df$n/df$ksq, decreasing = FALSE), ]
   
   # set ndivk_max_plt to the maximum observed sample size in df (fallback to large default if unavailable)
   ndivk_min_plt <- 10
@@ -677,31 +677,50 @@ estimate_params <- function(df, df_meta, n_pts, main_title, fn, plot_type = "cro
     }
     
     if (use_bayesian_fit) {
-      keep <- !is.na(y_vals) & !is.na(v_vals) & !is.na(df$k) & !is.na(df$n)
+      keep <- !is.na(y_vals) & !is.na(v_vals) & !is.na(df$ksq) & !is.na(df$n)
       df_keep <- droplevels(df[keep, ])
       X_cat <- model.matrix(~ 0 + overarching_category, data = df_keep)
       colnames(X_cat) <- levels(df_keep$overarching_category)
-      X_bayes <- cbind(X_cat, "invn" = (df$k / df$n)[keep])  # slope shared across categories
+      # if (estimate_ksq_div_n_adj) {
+      #   X_bayes <- cbind(X_cat, "invn" = (df$ksq / df$n)[keep])  # slope shared across categories
+      #   y_bayes <- y_vals[keep]
+      X_bayes <- X_cat
+      y_bayes <- y_vals[keep] - (df$ksq / df$n)[keep]
       print("  Fitting bmr() [crossvariable]...")
       t0 <- Sys.time()
-      fit_all <- bmr(y = y_vals[keep], sigma = sqrt(v_vals[keep]),
-                     X = X_bayes,
-                     labels = df$name[keep],
-                     tau.prior = "uniform")
+      fit_all <- fit_bmr(y = y_bayes, sigma = sqrt(v_vals[keep]),
+                         X = X_bayes,
+                         labels = df$name[keep])
       print(paste0("    ...done in ", round(difftime(Sys.time(), t0, units = "secs"), 1), " sec"))
     } else {
       if (use_var_xv__emp) {
-        fit_all <- rma.mv(yi = var_xv__emp, 
+        # if (estimate_ksq_div_n_adj) {
+        #   fit_all <- rma.mv(yi = var_xv__emp,
+        #                     V = vi_var_xv__emp,
+        #                     mods = ~ I(ksq/n),
+        #                     random = ~ 1 | overarching_category/dataset_nested,
+        #                     data = df,
+        #                     method = "REML")
+        df$y_bias_corrected <- df$var_xv__emp - df$ksq / df$n
+        fit_all <- rma.mv(yi = y_bias_corrected,
                           V = vi_var_xv__emp,
-                          mods = ~ I(k/n),
                           random = ~ 1 | overarching_category/dataset_nested,
                           data = df,
                           method = "REML")
+        
       } else {
-        fit_all <- rma.mv(yi = var_xv, 
+        # if (estimate_ksq_div_n_adj) {
+        #   fit_all <- rma.mv(yi = var_xv,
+        #                     V = vi_var_xv,
+        #                     mods = ~ I(ksq/n),
+        #                     random = ~ 1 | overarching_category/dataset_nested,
+        #                     data = df,
+        #                     method = "REML")
+
+        df$y_bias_corrected <- df$var_xv - df$ksq / df$n
+        fit_all <- rma.mv(yi = y_bias_corrected,
                           V = vi_var_xv,
-                          mods = ~ I(k/n),
-                          random = ~ 1 | overarching_category/dataset_nested,
+                          random = ~ 1 | overarching_category,
                           data = df,
                           method = "REML")
       }
@@ -771,19 +790,22 @@ estimate_params <- function(df, df_meta, n_pts, main_title, fn, plot_type = "cro
       
     } else {
       
-      slope_est <- post_summary[est_row, "invn"]
-      slope_lwr <- post_summary[lwr_row, "invn"]
-      slope_upr <- post_summary[upr_row, "invn"]
+      # if (estimate_ksq_div_n_adj) {
+      #   slope_est <- post_summary[est_row, "invn"]
+      #   slope_lwr <- post_summary[lwr_row, "invn"]
+      #   slope_upr <- post_summary[upr_row, "invn"]
+      #   
+      #   # Joint draws are needed when the slope is estimated because predictions
+      #   # combine correlated category and slope posteriors.
+      #   n_draws <- 500
+      #   print(paste0("  Drawing ", n_draws, " posterior samples via rposterior()..."))
+      #   t0 <- Sys.time()
+      #   draws <- fit_all$rposterior(n_draws)
+      #   print(paste0("    ...done in ", round(difftime(Sys.time(), t0, units = "secs"), 1), " sec"))
       
-      # BEWARE: rposterior() is slow -- samples via numerical inversion, and by default (tau.sample=TRUE) also draws tau,
-      # requiring root-finding per draw. TODO: consider setting tau.sample=FALSE
-      n_draws <- 500
-      print(paste0("  Drawing ", n_draws, " posterior samples via rposterior()..."))
-      t0 <- Sys.time()
-      draws <- fit_all$rposterior(n_draws)
-      print(paste0("    ...done in ", round(difftime(Sys.time(), t0, units = "secs"), 1), " sec"))
-      # NOTE: inspect once with str(draws) / colnames(draws) to confirm
-      # it returns a draw per X column (+ tau) under these same names.
+      slope_est <- 1
+      slope_lwr <- 1
+      slope_upr <- 1
       
       for (cat in unique_cats) {
         cat_col <- resolve_col(as.character(cat), colnames(post_summary))
@@ -795,16 +817,30 @@ estimate_params <- function(df, df_meta, n_pts, main_title, fn, plot_type = "cro
           next
         }
         
-        # draws may use the same (possibly renamed) col names as post_summary, so
-        # resolve against draws' own colnames rather than assuming match
-        draws_col <- resolve_col(as.character(cat), colnames(draws))
-        if (is.na(draws_col)) {
-          warning(paste0("Category '", as.character(cat), "' found in post_summary but not in ",
-                         "rposterior() draws -- excluding from results. Check colnames(draws) ",
-                         "against colnames(fit_all$summary)."))
+        # if (estimate_ksq_div_n_adj) {
+        #   # draws may use the same (possibly renamed) col names as post_summary, so
+        #   # resolve against draws' own colnames rather than assuming match
+        #   draws_col <- resolve_col(as.character(cat), colnames(draws))
+        #   if (is.na(draws_col)) {
+        #     warning(paste0("Category '", as.character(cat), "' found in post_summary but not in ",
+        #                    "rposterior() draws -- excluding from results. Check colnames(draws) ",
+        #                    "against colnames(fit_all$summary)."))
+        #     next
+        #   }
+        # }
+        
+        # Resolve beta index against X_bayes with same name-normalization fallback.
+        # post_summary and X_bayes can differ in raw column labels (e.g., spaces vs make.names).
+        cat_col_x <- resolve_col(cat_col, colnames(X_bayes))
+        if (is.na(cat_col_x)) {
+          cat_col_x <- resolve_col(as.character(cat), colnames(X_bayes))
+        }
+        if (is.na(cat_col_x)) {
+          warning(paste0("Category '", as.character(cat), "' could not be mapped to X_bayes columns for posterior queries ",
+                         "(plot_type = '", plot_type, "') -- excluding from results."))
           next
         }
-        
+        cat_idx <- match(cat_col_x, colnames(X_bayes))
         cat_est <- post_summary[est_row, cat_col]
         cat_lwr <- post_summary[lwr_row, cat_col]
         cat_upr <- post_summary[upr_row, cat_col]
@@ -819,12 +855,23 @@ estimate_params <- function(df, df_meta, n_pts, main_title, fn, plot_type = "cro
           row.names = paste0(cat, "_intercept")
         )
         
-        pred_draws <- outer(draws[, draws_col], rep(1, length(ndivk__seq))) +
-          outer(draws[, "invn"], 1 / ndivk__seq)
+        # if (estimate_ksq_div_n_adj) {
+        #   pred_draws <- outer(draws[, draws_col], rep(1, length(ndivk__seq))) +
+        #     outer(draws[, "invn"], 1 / ndivk__seq)
+        #   predicted_y[[cat]] <- cbind(
+        #     fit = colMeans(pred_draws),
+        #     lwr = apply(pred_draws, 2, quantile, probs = 0.025),
+        #     upr = apply(pred_draws, 2, quantile, probs = 0.975)
+        #   )
+        
+        intercept_quantiles <- fit_all$qposterior(
+          beta.p = c(0.025, 0.5, 0.975),
+          which.beta = cat_idx
+        )
         predicted_y[[cat]] <- cbind(
-          fit = colMeans(pred_draws),
-          lwr = apply(pred_draws, 2, quantile, probs = 0.025),
-          upr = apply(pred_draws, 2, quantile, probs = 0.975)
+          fit = intercept_quantiles[2] + 1 / ndivk__seq,
+          lwr = intercept_quantiles[1] + 1 / ndivk__seq,
+          upr = intercept_quantiles[3] + 1 / ndivk__seq
         )
       }
     }
@@ -864,10 +911,14 @@ estimate_params <- function(df, df_meta, n_pts, main_title, fn, plot_type = "cro
         predicted_y[[cat]] <- cbind(fit = preds, lwr = lwr, upr = upr)
         
       } else {
-        # For models with moderators (intercept and slope)
-        # Note: slope is the same for all categories (fixed effect)
-        slope <- fit_all$beta[2]
-        slope_se <- sqrt(fit_all$vb[2,2])
+        # if (estimate_ksq_div_n_adj) {
+        #   # For models with moderators (intercept and slope)
+        #   # Note: slope is the same for all categories (fixed effect)
+        #   slope <- fit_all$beta[2]
+        #   slope_se <- sqrt(fit_all$vb[2,2])
+        
+        slope <- 1
+        slope_se <- 0
         
         # Only include intercept in results (not slope)
         res[[cat]] <- data.frame(
@@ -883,7 +934,12 @@ estimate_params <- function(df, df_meta, n_pts, main_title, fn, plot_type = "cro
         # Create predicted values with category-specific intercept
         preds <- cat_intercept + slope * 1/ndivk__seq
         # Standard errors for predictions (more complex with random effects)
-        X_pred <- cbind(1, 1/ndivk__seq)
+        
+        # if (estimate_ksq_div_n_adj) {
+        #   X_pred <- cbind(1, 1/ndivk__seq)
+        
+        X_pred <- matrix(1, nrow = length(ndivk__seq), ncol = 1)
+       
         preds_se_fixed <- sqrt(diag(X_pred %*% fit_all$vb %*% t(X_pred)))
         preds_se <- sqrt(preds_se_fixed^2 + cat_intercept_se^2)
         lwr <- preds - 1.96 * preds_se
@@ -900,8 +956,8 @@ estimate_params <- function(df, df_meta, n_pts, main_title, fn, plot_type = "cro
   # Plot, optionally adding meta points/labels
   # ------------------------------------------------------------------
   
-  df$x_plot <- df$n/df$k
-  x_label <- "n/k (log scale)"
+  df$x_plot <- df$n/df$ksq
+  x_label <- "n/k^2 (log scale)"
   # use ndivk_max_plt (prediction max) to set the upper x limit
   x_limits <- c(ndivk_min_plt, ndivk_max_plt)
   
@@ -964,7 +1020,7 @@ estimate_params <- function(df, df_meta, n_pts, main_title, fn, plot_type = "cro
     
     if (add_meta && nrow(df_meta) > 0) {
       df_meta$label <- paste0(gsub("_reference_", " (", df_meta$name), ")\n", df_meta$n_studies, " ", ifelse(df_meta$n_studies == 1, "study", "studies"))
-      df_meta$x_plot <- df_meta$n/df_meta$k
+      df_meta$x_plot <- df_meta$n/df_meta$ksq
       p <- p +
         geom_point(data = df_meta, aes_string(x = "x_plot", y = y_var, color = "overarching_category"), shape = 8, size = 2) +
         geom_text_repel(data = df_meta, aes_string(x = "x_plot", y = y_var, label = "label"), size = 2.2, segment.size = 0.3, force = 10, max.overlaps = Inf)
