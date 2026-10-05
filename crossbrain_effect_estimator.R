@@ -632,6 +632,24 @@ estimate_params <- function(df, df_meta, n_pts, main_title, fn, plot_type = "cro
   
   # fit meta-analysis nesting studies by dataset and overarching category
   
+  # bayesmeta's uniform tau prior can be improper for some MV datasets and lead to
+  # "the integral is probably divergent" when integrating the posterior. Retry with
+  # a proper shrinkage prior if that happens.
+  fit_bmr <- function(y, sigma, X, labels) {
+    fit_try <- tryCatch(
+      bmr(y = y, sigma = sigma, X = X, labels = labels, tau.prior = "uniform"),
+      error = function(e) {
+        msg <- conditionMessage(e)
+        if (grepl("integral is probably divergent|divergent", msg, ignore.case = TRUE)) {
+          warning(paste0("bmr() with a uniform tau prior failed due to a divergent posterior integral; retrying with a shrinkage tau prior. Original error: ", msg))
+          return(bmr(y = y, sigma = sigma, X = X, labels = labels, tau.prior = "shrinkage"))
+        }
+        stop(msg)
+      }
+    )
+    return(fit_try)
+  }
+  
   # setup grouping variables (used by the frequentist rma.mv nesting)
   df$dataset_nested <- interaction(df$overarching_category, df$dataset, drop = TRUE)
   
@@ -646,11 +664,10 @@ estimate_params <- function(df, df_meta, n_pts, main_title, fn, plot_type = "cro
       colnames(X_bayes) <- levels(df_keep$overarching_category)
       print("  Fitting bmr() [mv, intercept-only]...")
       t0 <- Sys.time()
-      fit_all <- bmr(y = df$mv[keep],
-                     sigma = sqrt(df$vi_mv[keep]),
-                     X = X_bayes,
-                     labels = df$name[keep],
-                     tau.prior = "uniform")
+      fit_all <- fit_bmr(y = df$mv[keep],
+                         sigma = sqrt(df$vi_mv[keep]),
+                         X = X_bayes,
+                         labels = df$name[keep])
       print(paste0("    ...done in ", round(difftime(Sys.time(), t0, units = "secs"), 1), " sec"))
     } else {
       fit_all <- rma.mv(yi = mv, 
