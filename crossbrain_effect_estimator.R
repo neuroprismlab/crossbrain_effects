@@ -1268,10 +1268,19 @@ plot_densities <- function(res, res_mv,  n_pts, fn_basedir, cat_colors, save_plo
     
     # Combine plots with patchwork
     p_density_panel <- Reduce(`+`, plot_list) +
-      plot_layout(nrow = nrow, guides = 'collect') &
-      theme(legend.position = c(0.02, 0.98), 
-            legend.justification = c("left", "top"),
-            legend.background = element_rect(fill = "white", color = "grey80"))
+      plot_layout(nrow = nrow, guides = 'collect') 
+    
+    # OPTIONAL: ADD LEGEND 
+    add_legend <- FALSE
+    if (add_legend) {
+      p_density_panel <- p_density_panel + theme(legend.position = c(0.02, 0.98), 
+                                         legend.justification = c("left", "top"),
+                                         legend.background = element_rect(fill = "white", color = "grey80"))
+    }
+    #&
+      # theme(legend.position = c(0.02, 0.98), 
+      #       legend.justification = c("left", "top"),
+      #       legend.background = element_rect(fill = "white", color = "grey80"))
     
     # p_density_panel <- ggplot(density_df, aes(x = d, y = density, color = overarching_category, fill = overarching_category, linetype = sigma_type)) +
     #   geom_ribbon(aes(ymin = 0, ymax = density,
