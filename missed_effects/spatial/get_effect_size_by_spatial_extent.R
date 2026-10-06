@@ -6,6 +6,7 @@ library(tidyr)
 library(ggplot2)
 library(metafor)
 library(tibble) # for rownames_to_column
+library(bayesmeta)
 
 ### Set params & filenames
 pooling_type <- "none"
@@ -201,6 +202,60 @@ for (this_extent in spatial_extents) {
 
 ##### FIT PARAMS ####
 
+# Mirrors the plot_type == "mv" bayesian branch of estimate_params() in crossbrain_effect_estimator.R:
+# intercept-only bmr() with category as one-hot fixed effect (the mean mv effect, so no k^2/n term)
+fit_params_bayes <- function(df, d_var) {
+  
+  # uniform tau prior can give a divergent posterior integral; retry with shrinkage prior
+  fit_bmr <- function(y, sigma, X, labels) {
+    tryCatch(
+      bmr(y = y, sigma = sigma, X = X, labels = labels, tau.prior = "uniform"),
+      error = function(e) {
+        if (grepl("divergent", conditionMessage(e), ignore.case = TRUE)) {
+          warning(paste0("bmr() with uniform tau prior failed; retrying with shrinkage prior. Original error: ", conditionMessage(e)))
+          return(bmr(y = y, sigma = sigma, X = X, labels = labels, tau.prior = "shrinkage"))
+        }
+        stop(e)
+      }
+    )
+  }
+  
+  # bmr() may rename columns containing spaces
+  resolve_col <- function(name, choices) {
+    if (name %in% choices) return(name)
+    hit <- choices[make.names(choices) == make.names(name)]
+    if (length(hit) == 1) return(hit)
+    return(NA_character_)
+  }
+  
+  keep <- !is.na(df$d) & !is.na(d_var)
+  df_keep <- droplevels(df[keep, ])
+  X <- model.matrix(~ 0 + overarching_category, data = df_keep)
+  colnames(X) <- levels(df_keep$overarching_category)
+  
+  fit <- fit_bmr(y = df$d[keep],
+                 sigma = sqrt(d_var[keep]),
+                 X = X,
+                 labels = df$name[keep])
+  post <- fit$summary
+  
+  model_params <- list()
+  for (cat in colnames(X)) {
+    col <- resolve_col(cat, colnames(post))
+    if (is.na(col)) {
+      warning(paste0("Category '", cat, "' not found in bmr() summary -- excluding."))
+      next
+    }
+    model_params[[cat]] <- data.frame(
+      est = post["mean", col],
+      lwr = post["95% lower", col],
+      upr = post["95% upper", col],
+      row.names = paste0(cat, "_intercept")
+    )
+  }
+  model_params
+}
+
 for (this_extent in spatial_extents) {
 
   df <- get(paste0("study_level_data_", this_extent))
@@ -249,44 +304,7 @@ for (this_extent in spatial_extents) {
   }
   
 
-  fit_all <- rma.mv(yi = d, 
-                    V = d_var,  # approximate variance
-                    mods = ~ I(k2/n),
-                    random = ~ 1 | overarching_category,
-                    data = df,
-                    method = "REML")
-  
-  random_effects <- ranef(fit_all)
-  category_effects <- random_effects$overarching_category
-  
-  # Create results with category-specific intercepts
-  unique_cats <- unique(df$overarching_category)
-  model_params <- vector("list", length(unique_cats))
-  fit_all_vb <- vector("list", length(unique_cats))
-  names(model_params) <- unique_cats
-  
-  slope <- fit_all$beta[2]
-  slope_se <- sqrt(fit_all$vb[2,2])
-  
-  # Only include intercept in results (not slope)
-  for (cat in unique_cats) {
-    cat_intercept <- fit_all$beta[1] + category_effects[cat, "intrcpt"]
-    cat_intercept_se <- sqrt(fit_all$vb[1,1] + category_effects[cat, "se"]^2)
-    model_params[[cat]] <- data.frame(
-      est = cat_intercept,
-      lwr = cat_intercept - 1.96 * cat_intercept_se,
-      upr = cat_intercept + 1.96 * cat_intercept_se,
-      est_se = cat_intercept_se,
-      phi2_est = slope,
-      phi2_lwr = slope - 1.96 * slope_se,
-      phi2_upr = slope + 1.96 * slope_se,
-      phi2_se = slope_se,
-      row.names = paste0(cat, "_intercept")
-    )
-    fit_all_vb[[cat]] <- list(
-      phi2_vb = fit_all$vb
-    )
-  }
+  model_params <- fit_params_bayes(df, d_var)
   
   ### rename model params to model_params_<extent>
   assign(paste0("model_params_", this_extent), model_params)
@@ -297,24 +315,20 @@ for (this_extent in spatial_extents) {
 
 build_predictions_mat <- function(model_params, extent = NULL) {
   ndivk2_seq <- 10^seq(log10(10), log10(20000), length.out = 100)
-  X_pred <- cbind(1, 1/ndivk2_seq)
   prediction_list <- list()
 
   for (cat in unique(model_params$overarching_category)) {
     idx <- model_params$overarching_category == cat
     est_cat <- model_params$est[idx][1]
-    phi2_cat <- model_params$phi2_est[idx][1]
-    est_se_cat <- model_params$est_se[idx][1]
+    lwr_cat <- model_params$lwr[idx][1]
+    upr_cat <- model_params$upr[idx][1]
 
-    preds <- est_cat + phi2_cat * (1 / ndivk2_seq)
-    preds_se_fixed <- sqrt(diag(X_pred %*% fit_all_vb[[cat]]$phi2_vb %*% t(X_pred)))
-    preds_se <- sqrt(preds_se_fixed^2 + est_se_cat^2)
-
+    # constant line (intercept-only mv model)
     pred_df <- data.frame(
       X = ndivk2_seq,
-      preds = preds,
-      lwr = preds - 1.96 * preds_se,
-      upr = preds + 1.96 * preds_se,
+      preds = rep(est_cat, length(ndivk2_seq)),
+      lwr = rep(lwr_cat, length(ndivk2_seq)),
+      upr = rep(upr_cat, length(ndivk2_seq)),
       overarching_category = cat
     )
 
@@ -815,40 +829,7 @@ compute_motion_results <- function(motion_type_local,
       d_var[is.na(df$n) | df$n <= 2000] <- 15 * d_var[is.na(df$n) | df$n <= 2000]
     }
 
-    fit_all <- rma.mv(
-      yi = d,
-      V = d_var,
-      mods = ~ I(k2/n),
-      random = ~ 1 | overarching_category,
-      data = df,
-      method = "REML"
-    )
-
-    random_effects <- ranef(fit_all)
-    category_effects <- random_effects$overarching_category
-    unique_cats <- unique(df$overarching_category)
-
-    model_params <- vector("list", length(unique_cats))
-    names(model_params) <- unique_cats
-
-    slope <- fit_all$beta[2]
-    slope_se <- sqrt(fit_all$vb[2, 2])
-
-    for (cat in unique_cats) {
-      cat_intercept <- fit_all$beta[1] + category_effects[cat, "intrcpt"]
-      cat_intercept_se <- sqrt(fit_all$vb[1, 1] + category_effects[cat, "se"]^2)
-      model_params[[cat]] <- data.frame(
-        est = cat_intercept,
-        lwr = cat_intercept - 1.96 * cat_intercept_se,
-        upr = cat_intercept + 1.96 * cat_intercept_se,
-        est_se = cat_intercept_se,
-        phi2_est = slope,
-        phi2_lwr = slope - 1.96 * slope_se,
-        phi2_upr = slope + 1.96 * slope_se,
-        phi2_se = slope_se,
-        row.names = paste0(cat, "_intercept")
-      )
-    }
+    model_params <- fit_params_bayes(df, d_var)
 
     model_params_by_extent[[this_extent]] <- model_params
     model_params_list_local[[this_extent]] <- do.call(rbind, model_params) %>%
@@ -867,13 +848,18 @@ compute_motion_results <- function(motion_type_local,
     })
 
     rn <- Reduce(union, lapply(vecs, names))
-    mat <- sapply(vecs, function(v) {
-      out <- setNames(rep(NA_real_, length(rn)), rn)
+    mat <- do.call(cbind, lapply(vecs, function(v) {
+      out <- rep(NA_real_, length(rn))
+      names(out) <- rn
       if (length(v) > 0) out[names(v)] <- v
       out
-    }, simplify = "matrix")
+    }))
 
-    colnames(mat) <- spatial_extents
+    if (is.null(dim(mat))) {
+      mat <- matrix(mat, nrow = length(rn), dimnames = list(rn, spatial_extents))
+    } else {
+      colnames(mat) <- spatial_extents
+    }
     model_params_master_local[[cat]] <- as.data.frame(mat, check.names = FALSE)
   }
 
